@@ -76,3 +76,7 @@ volumes:
 networks:
   internal:
     driver: bridge
+    ipam:
+      config:
+        - subnet: 172.28.26.0/24
+          gateway: 172.28.26.1

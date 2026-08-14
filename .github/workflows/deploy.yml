@@ -26,8 +26,11 @@ jobs:
             set -e
             APP_DIR="$HOME/Projetos/Clientes/18-Santiago_Producoes/01.Sistema_Shows_Rafael_Aragao"
             cd "$APP_DIR"
-            git fetch origin main
+            git remote prune origin || true
+            git fetch origin +main:refs/remotes/origin/main
             git reset --hard origin/main
+            sed -i 's/\r$//' backend/entrypoint.sh || true
+            chmod +x backend/entrypoint.sh || true
             if [ ! -f deploy/.env ]; then
               echo "ERRO: deploy/.env não existe no servidor."
               exit 1

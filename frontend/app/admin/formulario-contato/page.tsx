@@ -42,12 +42,15 @@ type SectionForm = {
 };
 
 const SECTION_DEFAULTS: SectionForm = {
-  contact_eyebrow: SITE_DEFAULTS.contact_eyebrow,
-  contact_title_line1: SITE_DEFAULTS.contact_title_line1,
-  contact_title_line2: SITE_DEFAULTS.contact_title_line2,
-  contact_scroll_hint: SITE_DEFAULTS.contact_scroll_hint,
-  contact_bg_image_url: SITE_DEFAULTS.contact_bg_image_url,
-  contact_bg_image_display: SITE_DEFAULTS.contact_bg_image_url,
+  contact_eyebrow: SITE_DEFAULTS.contact_eyebrow || "Contratação",
+  contact_title_line1: SITE_DEFAULTS.contact_title_line1 || "FAÇA SEU EVENTO",
+  contact_title_line2: SITE_DEFAULTS.contact_title_line2 || "CORPORATIVO",
+  contact_scroll_hint:
+    SITE_DEFAULTS.contact_scroll_hint || "Role para revelar o formulário",
+  contact_bg_image_url:
+    SITE_DEFAULTS.contact_bg_image_url || "/images/rei-dos-peao.png",
+  contact_bg_image_display:
+    SITE_DEFAULTS.contact_bg_image_url || "/images/rei-dos-peao.png",
 };
 
 export default function FormularioContatoPage() {

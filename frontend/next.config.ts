@@ -4,6 +4,8 @@ import type { NextConfig } from "next";
 const BACKEND = process.env.BACKEND_URL || "http://127.0.0.1:8000";
 
 const nextConfig: NextConfig = {
+  // Imagem Docker usa standalone; local (npm run dev) continua normal.
+  output: "standalone",
   // Sem isso, abrir o site em http://127.0.0.1:3000 bloqueia /_next/*.js com 403
   // e o login “não funciona” (React não hidrata; form faz GET nativo).
   allowedDevOrigins: ["127.0.0.1", "localhost"],
@@ -17,6 +19,7 @@ const nextConfig: NextConfig = {
   images: {
     remotePatterns: [
       { protocol: "https", hostname: "orafaelaragao.com.br" },
+      { protocol: "https", hostname: "aragao.kaviskicorporation.com.br" },
       { protocol: "http", hostname: "localhost" },
       { protocol: "http", hostname: "127.0.0.1" },
     ],

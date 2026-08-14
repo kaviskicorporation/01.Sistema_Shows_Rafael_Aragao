@@ -68,30 +68,65 @@ class Command(BaseCommand):
     help = "Popula o banco com dados iniciais (agenda, Kanban, admin, demo CRM)."
 
     def handle(self, *args, **options):
-        # Remove usuários de exemplo antigos
-        removed, _ = User.objects.filter(
-            username__in=["gerente", "comercial", "visualizador"]
-        ).delete()
-        if removed:
-            self.stdout.write(self.style.WARNING(f"Removidos {removed} usuários de exemplo."))
+        DEMO_USERS = [
+            {
+                "username": "admin",
+                "password": "admin12345",
+                "role": User.Role.ADMIN,
+                "first_name": "Administrador",
+                "email": "admin@rafaelaragao.local",
+                "superuser": True,
+            },
+            {
+                "username": "gerente",
+                "password": "gerente12345",
+                "role": User.Role.GERENTE,
+                "first_name": "Gerente",
+                "email": "gerente@rafaelaragao.local",
+                "superuser": False,
+            },
+            {
+                "username": "comercial",
+                "password": "comercial12345",
+                "role": User.Role.COMERCIAL,
+                "first_name": "Comercial",
+                "email": "comercial@rafaelaragao.local",
+                "superuser": False,
+            },
+            {
+                "username": "visualizador",
+                "password": "visual12345",
+                "role": User.Role.VISUALIZADOR,
+                "first_name": "Visualizador",
+                "email": "visualizador@rafaelaragao.local",
+                "superuser": False,
+            },
+        ]
 
-        # Só o admin
-        if not User.objects.filter(username="admin").exists():
-            User.objects.create_superuser(
-                username="admin",
-                email="admin@rafaelaragao.local",
-                password="admin12345",
-                role=User.Role.ADMIN,
-                first_name="Administrador",
+        for spec in DEMO_USERS:
+            user, created = User.objects.get_or_create(
+                username=spec["username"],
+                defaults={
+                    "email": spec["email"],
+                    "role": spec["role"],
+                    "first_name": spec["first_name"],
+                    "is_staff": spec["superuser"],
+                    "is_superuser": spec["superuser"],
+                },
             )
-            self.stdout.write(self.style.SUCCESS("Usuário admin criado (admin / admin12345)."))
-        else:
-            admin = User.objects.get(username="admin")
-            admin.role = User.Role.ADMIN
-            admin.is_staff = True
-            admin.is_superuser = True
-            admin.set_password("admin12345")
-            admin.save()
+            user.email = spec["email"]
+            user.role = spec["role"]
+            user.first_name = spec["first_name"]
+            user.is_staff = spec["superuser"]
+            user.is_superuser = spec["superuser"]
+            user.set_password(spec["password"])
+            user.save()
+            if created:
+                self.stdout.write(
+                    self.style.SUCCESS(
+                        f"Usuário {spec['username']} criado ({spec['username']} / {spec['password']})."
+                    )
+                )
 
         config = SiteConfig.load()
         config.hero_title = "Rafael Aragão"

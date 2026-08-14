@@ -23,6 +23,7 @@ yarn-error.log*
 .env
 .env.*
 !.env.example
+deploy/.env
 *.pem
 *.local
 

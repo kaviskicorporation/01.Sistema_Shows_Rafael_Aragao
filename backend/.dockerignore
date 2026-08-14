@@ -1,0 +1,11 @@
+# Backend
+.venv/
+**/__pycache__/
+*.pyc
+db.sqlite3
+media/
+staticfiles/
+
+# Ignore local env copies accidentally placed next to Dockerfiles
+.env
+.env.local

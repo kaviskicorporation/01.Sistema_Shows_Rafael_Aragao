@@ -1,9 +1,44 @@
 "use client";
 
 import { useState } from "react";
-import { LogIn } from "lucide-react";
+import { Briefcase, Eye, Handshake, LogIn, Shield } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { ApiError } from "@/lib/api";
+
+const PROFILES = [
+  {
+    username: "admin",
+    password: "admin12345",
+    label: "Administrador",
+    short: "Admin",
+    icon: Shield,
+    tone: "border-gold/40 bg-gold/15 text-gold hover:bg-gold hover:text-ink",
+  },
+  {
+    username: "gerente",
+    password: "gerente12345",
+    label: "Gerente",
+    short: "Gerente",
+    icon: Briefcase,
+    tone: "border-sky-400/40 bg-sky-500/15 text-sky-300 hover:bg-sky-400 hover:text-ink",
+  },
+  {
+    username: "comercial",
+    password: "comercial12345",
+    label: "Comercial",
+    short: "Comercial",
+    icon: Handshake,
+    tone: "border-emerald-400/40 bg-emerald-500/15 text-emerald-300 hover:bg-emerald-400 hover:text-ink",
+  },
+  {
+    username: "visualizador",
+    password: "visual12345",
+    label: "Visualizador",
+    short: "Visual",
+    icon: Eye,
+    tone: "border-violet-400/40 bg-violet-500/15 text-violet-300 hover:bg-violet-400 hover:text-ink",
+  },
+] as const;
 
 export default function LoginPage() {
   const { login } = useAuth();
@@ -11,14 +46,16 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [loadingUser, setLoadingUser] = useState<string | null>(null);
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    e.stopPropagation();
-    setLoading(true);
+  const busy = loading || loadingUser !== null;
+
+  async function enter(user: string, pass: string, asProfile?: string) {
     setError("");
+    if (asProfile) setLoadingUser(asProfile);
+    else setLoading(true);
     try {
-      await login(username.trim(), password);
+      await login(user.trim(), pass);
     } catch (err) {
       setError(
         err instanceof ApiError
@@ -26,7 +63,14 @@ export default function LoginPage() {
           : "Não foi possível entrar. Verifique se o backend está rodando."
       );
       setLoading(false);
+      setLoadingUser(null);
     }
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    await enter(username, password);
   }
 
   return (
@@ -79,7 +123,7 @@ export default function LoginPage() {
 
           <button
             type="button"
-            disabled={loading}
+            disabled={busy}
             onClick={() => {
               void handleSubmit({
                 preventDefault() {},
@@ -91,6 +135,38 @@ export default function LoginPage() {
             <LogIn size={18} />
             {loading ? "Entrando..." : "Entrar"}
           </button>
+
+          <div className="mt-6 flex items-center gap-3">
+            <span className="h-px flex-1 bg-white/10" />
+            <span className="text-[11px] uppercase tracking-[0.18em] text-white/30">
+              ou entre como
+            </span>
+            <span className="h-px flex-1 bg-white/10" />
+          </div>
+
+          <div className="mt-4 grid grid-cols-4 gap-2">
+            {PROFILES.map((profile) => {
+              const Icon = profile.icon;
+              const active = loadingUser === profile.username;
+              return (
+                <button
+                  key={profile.username}
+                  type="button"
+                  disabled={busy}
+                  title={profile.label}
+                  onClick={() =>
+                    void enter(profile.username, profile.password, profile.username)
+                  }
+                  className={`flex flex-col items-center gap-1.5 rounded-xl border px-1 py-3 transition-colors disabled:opacity-60 ${profile.tone}`}
+                >
+                  <Icon size={16} strokeWidth={2} />
+                  <span className="text-[11px] font-medium leading-none">
+                    {active ? "…" : profile.short}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
         </form>
       </div>
     </div>

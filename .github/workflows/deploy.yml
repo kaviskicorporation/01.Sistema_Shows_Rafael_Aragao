@@ -1,0 +1,37 @@
+name: Deploy production
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy over SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          port: 22
+          script_stop: true
+          command_timeout: 30m
+          script: |
+            set -e
+            APP_DIR="$HOME/Projetos/Clientes/18-Santiago_Producoes/01.Sistema_Shows_Rafael_Aragao"
+            cd "$APP_DIR"
+            git fetch origin main
+            git reset --hard origin/main
+            if [ ! -f deploy/.env ]; then
+              echo "ERRO: deploy/.env não existe no servidor."
+              exit 1
+            fi
+            docker compose -f deploy/docker-compose.yml --env-file deploy/.env up -d --build
+            docker compose -f deploy/docker-compose.yml --env-file deploy/.env ps
+            curl -fsS -o /dev/null -w "%{http_code}\n" http://127.0.0.1:9026/ || true

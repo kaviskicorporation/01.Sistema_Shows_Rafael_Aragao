@@ -1,0 +1,3 @@
+# Ensure LF line endings for shell scripts used in Linux containers
+backend/entrypoint.sh text eol=lf
+deploy/**/*.sh text eol=lf

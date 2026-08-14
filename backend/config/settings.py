@@ -1,5 +1,6 @@
 from pathlib import Path
 from datetime import timedelta
+from urllib.parse import urlparse
 import os
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -11,9 +12,13 @@ SECRET_KEY = os.environ.get(
 
 DEBUG = os.environ.get("DJANGO_DEBUG", "1") == "1"
 
-ALLOWED_HOSTS = os.environ.get(
-    "DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1,testserver"
-).split(",")
+ALLOWED_HOSTS = [
+    h.strip()
+    for h in os.environ.get(
+        "DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1,testserver"
+    ).split(",")
+    if h.strip()
+]
 
 # When Next.js rewrites /api to Django it may forward Host: localhost:3000.
 # Accept that host in development so the proxy works out of the box.
@@ -69,14 +74,26 @@ TEMPLATES = [
 
 WSGI_APPLICATION = "config.wsgi.application"
 
-DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.sqlite3",
-        "NAME": BASE_DIR / "db.sqlite3",
+DATABASE_URL = os.environ.get("DATABASE_URL", "").strip()
+if DATABASE_URL:
+    parsed = urlparse(DATABASE_URL)
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.postgresql",
+            "NAME": parsed.path.lstrip("/") or "postgres",
+            "USER": parsed.username or "",
+            "PASSWORD": parsed.password or "",
+            "HOST": parsed.hostname or "",
+            "PORT": str(parsed.port or 5432),
+        }
     }
-}
-
-# In production set DATABASE_URL / use PostgreSQL (see README).
+else:
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.sqlite3",
+            "NAME": BASE_DIR / "db.sqlite3",
+        }
+    }
 
 AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
@@ -94,11 +111,15 @@ USE_TZ = True
 # disable APPEND_SLASH so POST requests are not rejected.
 APPEND_SLASH = False
 
-STATIC_URL = "static/"
+STATIC_URL = "/static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
 
 MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
+
+# Uploads grandes (vídeos/imagens no painel) — mínimo 200 MB
+DATA_UPLOAD_MAX_MEMORY_SIZE = 210 * 1024 * 1024
+FILE_UPLOAD_MAX_MEMORY_SIZE = 210 * 1024 * 1024
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
@@ -152,3 +173,8 @@ CSRF_TRUSTED_ORIGINS = list(
         "http://127.0.0.1:3000",
     }
 )
+
+# Atrás do Nginx (HTTPS no host → HTTP interno)
+if not DEBUG:
+    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+    USE_X_FORWARDED_HOST = True

@@ -231,40 +231,42 @@ export default function ConfiguracoesPage() {
   }
 
   async function save() {
+    if (!form) return;
+    const current = form;
     setSaving(true);
     setMsg("");
     setErr("");
     try {
       const fd = new FormData();
-      const primary = form.primary_color || "#f5b301";
-      const secondary = form.secondary_color || "#0f0f0f";
+      const primary = current.primary_color || "#f5b301";
+      const secondary = current.secondary_color || "#0f0f0f";
       const fields: [string, string | number][] = [
-        ["hero_title", form.hero_title || ""],
-        ["hero_subtitle", form.hero_subtitle || ""],
-        ["hero_image_url", form.hero_image_url || ""],
+        ["hero_title", current.hero_title || ""],
+        ["hero_subtitle", current.hero_subtitle || ""],
+        ["hero_image_url", current.hero_image_url || ""],
         ["primary_color", primary],
         ["secondary_color", secondary],
-        ["about_title", form.about_title || ""],
-        ["about_text", form.about_text || ""],
-        ["about_image_url", form.about_image_url || ""],
-        ["instagram", form.instagram || ""],
-        ["youtube", form.youtube || ""],
-        ["spotify", form.spotify || ""],
-        ["tiktok", form.tiktok || ""],
-        ["facebook", form.facebook || ""],
-        ["footer_text", form.footer_text || ""],
-        ["contact_email", form.contact_email || ""],
-        ["contact_phone", form.contact_phone || ""],
-        ["seo_title", form.seo_title || ""],
-        ["seo_description", form.seo_description || ""],
-        ["og_image_url", form.og_image_url || ""],
-        ["hide_rule", form.hide_rule || "next_day"],
-        ["hide_days_after", form.hide_days_after ?? 1],
+        ["about_title", current.about_title || ""],
+        ["about_text", current.about_text || ""],
+        ["about_image_url", current.about_image_url || ""],
+        ["instagram", current.instagram || ""],
+        ["youtube", current.youtube || ""],
+        ["spotify", current.spotify || ""],
+        ["tiktok", current.tiktok || ""],
+        ["facebook", current.facebook || ""],
+        ["footer_text", current.footer_text || ""],
+        ["contact_email", current.contact_email || ""],
+        ["contact_phone", current.contact_phone || ""],
+        ["seo_title", current.seo_title || ""],
+        ["seo_description", current.seo_description || ""],
+        ["og_image_url", current.og_image_url || ""],
+        ["hide_rule", current.hide_rule || "next_day"],
+        ["hide_days_after", current.hide_days_after ?? 1],
         [
           "agenda_default_view",
-          form.agenda_default_view === "list" ? "list" : "calendar",
+          current.agenda_default_view === "list" ? "list" : "calendar",
         ],
-        ["featured_video_url", form.featured_video_url || ""],
+        ["featured_video_url", current.featured_video_url || ""],
       ];
       for (const [k, v] of fields) fd.append(k, String(v));
 

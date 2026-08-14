@@ -324,7 +324,7 @@ export default function AdminDashboard() {
                       cx="50%"
                       cy="50%"
                       outerRadius={90}
-                      label={({ status }) => status}
+                      label={({ name }) => String(name ?? "")}
                       stroke="rgba(0,0,0,0.35)"
                       strokeWidth={1}
                     >

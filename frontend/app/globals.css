@@ -1,0 +1,326 @@
+@import "tailwindcss";
+
+:root {
+  --theme-primary: #f5b301;
+  --theme-secondary: #0f0f0f;
+  --background: var(--theme-secondary);
+  --foreground: #f5f5f5;
+}
+
+@theme inline {
+  --color-ink: var(--theme-secondary);
+  --color-ink-soft: color-mix(in srgb, var(--theme-secondary) 92%, white);
+  --color-ink-card: color-mix(in srgb, var(--theme-secondary) 82%, white);
+  --color-gold: var(--theme-primary);
+  --color-gold-soft: color-mix(in srgb, var(--theme-primary) 65%, white);
+  --color-brand: var(--theme-primary);
+  --font-sans: var(--font-sans), system-ui, sans-serif;
+  --font-display: var(--font-display), var(--font-sans), sans-serif;
+}
+
+html {
+  scroll-behavior: smooth;
+  overflow-x: clip;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--theme-primary) 40%, transparent)
+    color-mix(in srgb, var(--theme-secondary) 88%, white);
+}
+
+html::-webkit-scrollbar {
+  width: 13px;
+  height: 13px;
+}
+
+html::-webkit-scrollbar-track {
+  background: color-mix(in srgb, var(--theme-secondary) 88%, white);
+}
+
+html::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--theme-primary) 40%, transparent);
+  border-radius: 999px;
+  border: 2px solid color-mix(in srgb, var(--theme-secondary) 88%, white);
+}
+
+html::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--theme-primary) 65%, transparent);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans), system-ui, sans-serif;
+  overflow-x: clip;
+  max-width: 100vw;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--theme-primary) 40%, transparent)
+    transparent;
+  -webkit-tap-highlight-color: transparent;
+}
+
+body::-webkit-scrollbar {
+  width: 13px;
+  height: 13px;
+}
+
+body::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+body::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--theme-primary) 40%, transparent);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+body::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--theme-primary) 65%, transparent);
+  background-clip: padding-box;
+}
+
+/* Grain / depth on dark surfaces */
+.noise-bg::before {
+  content: "";
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  opacity: 0.055;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  z-index: 0;
+}
+
+/* Grade suave de quadrados */
+.bg-grid-soft {
+  background-image:
+    linear-gradient(
+      color-mix(in srgb, var(--theme-primary) 12%, transparent) 1px,
+      transparent 1px
+    ),
+    linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--theme-primary) 12%, transparent) 1px,
+      transparent 1px
+    );
+  background-size: 44px 44px;
+  mask-image: radial-gradient(
+    ellipse 80% 70% at 50% 40%,
+    #000 15%,
+    transparent 78%
+  );
+  -webkit-mask-image: radial-gradient(
+    ellipse 80% 70% at 50% 40%,
+    #000 15%,
+    transparent 78%
+  );
+  opacity: 0.55;
+}
+
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.hide-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.thin-scroll::-webkit-scrollbar {
+  height: 8px;
+  width: 8px;
+}
+.thin-scroll::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--theme-primary) 25%, transparent);
+  border-radius: 999px;
+}
+.thin-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+.thin-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--theme-primary) 35%, transparent)
+    transparent;
+}
+
+/* Selects nativos (admin) — aparência alinhada ao tema */
+select:not(.raw-select) {
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23f5b301' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.85rem center;
+  background-size: 0.95rem;
+  padding-right: 2.4rem;
+  border-radius: 0.75rem;
+  cursor: pointer;
+}
+
+select:not(.raw-select):focus {
+  border-color: var(--theme-primary);
+  outline: none;
+  box-shadow: 0 0 0 3px
+    color-mix(in srgb, var(--theme-primary) 16%, transparent);
+}
+
+select:not(.raw-select) option,
+select:not(.raw-select) optgroup {
+  background-color: #141414;
+  color: #f5f5f5;
+}
+
+/* Chips do mês na agenda — barra horizontal sempre usável */
+.cal-month-chips {
+  max-width: 100%;
+  -webkit-overflow-scrolling: touch;
+}
+.cal-month-chips::-webkit-scrollbar {
+  height: 6px;
+}
+.cal-month-chips::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--theme-primary) 45%, transparent);
+  border-radius: 999px;
+}
+.cal-month-chips::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 999px;
+}
+
+@keyframes floaty {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50% { transform: translateY(-14px) rotate(2deg); }
+}
+@keyframes floaty-slow {
+  0%, 100% { transform: translate3d(0, 0, 0); }
+  50% { transform: translate3d(12px, -18px, 0); }
+}
+@keyframes pulse-gold {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--theme-primary) 35%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 22px 2px
+      color-mix(in srgb, var(--theme-primary) 45%, transparent);
+  }
+}
+@keyframes shimmer {
+  0% { background-position: 0% 50%; }
+  100% { background-position: 200% 50%; }
+}
+@keyframes blink-caret {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+@keyframes drift-line {
+  0% { transform: translateX(-20%); opacity: 0.2; }
+  50% { opacity: 0.7; }
+  100% { transform: translateX(120%); opacity: 0.2; }
+}
+
+.animate-floaty {
+  animation: floaty 7s ease-in-out infinite;
+}
+.animate-floaty-slow {
+  animation: floaty-slow 11s ease-in-out infinite;
+}
+.animate-pulse-gold {
+  animation: pulse-gold 2.8s ease-in-out infinite;
+}
+
+.gold-glow {
+  box-shadow: 0 0 60px -12px
+    color-mix(in srgb, var(--theme-primary) 50%, transparent);
+}
+
+/* Magnetic-ish CTA */
+.btn-live {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+}
+.btn-live::after {
+  content: "";
+  position: absolute;
+  inset: -40%;
+  background: radial-gradient(circle at var(--mx, 50%) var(--my, 50%), rgba(255,255,255,0.35), transparent 45%);
+  opacity: 0;
+  transition: opacity 0.25s ease;
+  z-index: -1;
+}
+.btn-live:hover {
+  transform: translateY(-2px) scale(1.02);
+  box-shadow: 0 12px 40px -10px
+    color-mix(in srgb, var(--theme-primary) 55%, transparent);
+}
+.btn-live:hover::after {
+  opacity: 1;
+}
+
+/* Calendar days — altura fixa (não estica com o painel ao lado) */
+.cal-days-grid {
+  grid-auto-rows: auto;
+  align-items: stretch;
+  align-content: start;
+}
+.cal-day-live {
+  position: relative;
+  height: 3.5rem !important;
+  max-height: 3.5rem !important;
+  min-height: 0 !important;
+  align-self: start;
+}
+@media (min-width: 640px) {
+  .cal-day-live {
+    height: 4rem !important;
+    max-height: 4rem !important;
+  }
+}
+.cal-day-live::before {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--theme-primary) 55%, transparent),
+    transparent 55%,
+    color-mix(in srgb, var(--theme-primary) 20%, transparent)
+  );
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  z-index: 0;
+  pointer-events: none;
+}
+.cal-day-live:hover::before,
+.cal-day-live[data-active="true"]::before {
+  opacity: 1;
+}
+
+/* Section connector line */
+.section-beam {
+  position: absolute;
+  left: 50%;
+  width: 1px;
+  height: 80px;
+  transform: translateX(-50%);
+  overflow: hidden;
+  background: linear-gradient(
+    to bottom,
+    transparent,
+    color-mix(in srgb, var(--theme-primary) 40%, transparent),
+    transparent
+  );
+}
+.section-beam::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    to bottom,
+    transparent,
+    var(--theme-primary),
+    transparent
+  );
+  animation: drift-line 3.5s ease-in-out infinite;
+  width: 100%;
+  height: 40%;
+}

@@ -19,10 +19,7 @@ import {
 } from "@/lib/format";
 import AliveTitle from "./AliveTitle";
 import Countdown from "./Countdown";
-import SoftCursor, { type SoftCursorMode } from "./SoftCursor";
-import { useSoftCursorZone } from "./useSoftCursorZone";
 import SectionAura from "./SectionAura";
-import TiltCard from "./TiltCard";
 import { tourYearsLabel } from "@/lib/tourYears";
 
 const WEEKDAYS = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"];
@@ -36,34 +33,30 @@ function toKey(y: number, m: number, d: number) {
 export default function AgendaSection({
   events,
   defaultView = "calendar",
+  listPageSize = 20,
 }: {
   events: PublicEvent[];
   defaultView?: AgendaView;
+  listPageSize?: number;
 }) {
+  const pageSize = Math.max(1, Math.min(200, Number(listPageSize) || 20));
   const [state, setState] = useState("todos");
   const [view, setView] = useState<AgendaView>(
     defaultView === "list" ? "list" : "calendar"
   );
   const [cityQuery, setCityQuery] = useState("");
+  const [listVisible, setListVisible] = useState(pageSize);
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [selectAck, setSelectAck] = useState(0);
   const detailPulse = useAnimationControls();
-  const {
-    zoneRef,
-    active: cursorActive,
-    mode: cursorMode,
-    setMode: setCursorMode,
-    onZoneEnter,
-    onZoneLeave,
-  } = useSoftCursorZone();
 
   useEffect(() => {
     setView(defaultView === "list" ? "list" : "calendar");
   }, [defaultView]);
 
-  function setTip(mode: SoftCursorMode) {
-    setCursorMode(mode);
-  }
+  useEffect(() => {
+    setListVisible(pageSize);
+  }, [pageSize, state, cityQuery]);
 
   /** Seleciona um dia e dá feedback no card — inclusive se já estiver ativo. */
   function pickShow(key: string) {
@@ -105,7 +98,16 @@ export default function AgendaSection({
       });
   }, [filtered, cityQuery]);
 
-  const listGroups = useMemo(() => groupByMonth(listEvents), [listEvents]);
+  const visibleListEvents = useMemo(
+    () => listEvents.slice(0, listVisible),
+    [listEvents, listVisible]
+  );
+
+  const listGroups = useMemo(
+    () => groupByMonth(visibleListEvents),
+    [visibleListEvents]
+  );
+  const hasMoreList = listVisible < listEvents.length;
 
   const byDate = useMemo(() => {
     const map = new Map<string, PublicEvent[]>();
@@ -206,13 +208,46 @@ export default function AgendaSection({
   return (
     <section
       id="agenda"
-      className="relative overflow-hidden bg-ink-soft py-16 sm:py-20"
+      className="relative overflow-hidden bg-ink py-16 noise-bg sm:py-20"
     >
-      <SectionAura variant="rings" />
-      <SoftCursor active={cursorActive} mode={cursorMode} />
+      <div className="bg-grid-soft pointer-events-none absolute inset-0 z-0 opacity-55" aria-hidden />
+      <SectionAura variant="dots" />
 
-      {/* Bleed glow from hero */}
-      <div className="pointer-events-none absolute -top-32 left-1/2 z-[1] h-64 w-[80%] -translate-x-1/2 rounded-full bg-gold/8 blur-[100px]" />
+      <div
+        className="pointer-events-none absolute inset-0 z-[1]"
+        aria-hidden
+        style={{
+          backgroundImage: `
+            radial-gradient(ellipse at 18% 12%, color-mix(in srgb, var(--theme-primary) 16%, transparent), transparent 48%),
+            radial-gradient(ellipse at 88% 70%, color-mix(in srgb, var(--theme-primary) 10%, transparent), transparent 52%),
+            radial-gradient(ellipse at 50% 100%, rgba(255,255,255,0.03), transparent 45%)
+          `,
+        }}
+      />
+      <div
+        className="pointer-events-none absolute inset-0 z-[1] opacity-[0.35]"
+        aria-hidden
+        style={{
+          backgroundImage:
+            "repeating-linear-gradient(-18deg, transparent, transparent 28px, color-mix(in srgb, var(--theme-primary) 5%, transparent) 28px, color-mix(in srgb, var(--theme-primary) 5%, transparent) 29px)",
+          maskImage:
+            "linear-gradient(to bottom, transparent, #000 18%, #000 82%, transparent)",
+          WebkitMaskImage:
+            "linear-gradient(to bottom, transparent, #000 18%, #000 82%, transparent)",
+        }}
+      />
+      <motion.div
+        className="pointer-events-none absolute -left-24 top-24 z-[1] h-64 w-64 rounded-full bg-gold/15 blur-[100px]"
+        animate={{ opacity: [0.25, 0.45, 0.25], scale: [1, 1.08, 1] }}
+        transition={{ duration: 7, repeat: Infinity, ease: "easeInOut" }}
+        aria-hidden
+      />
+      <motion.div
+        className="pointer-events-none absolute -right-16 bottom-20 z-[1] h-72 w-72 rounded-full bg-gold/10 blur-[110px]"
+        animate={{ opacity: [0.2, 0.38, 0.2] }}
+        transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }}
+        aria-hidden
+      />
       <div className="section-beam -top-10 z-[1]" />
 
       <div className="relative z-10 mx-auto max-w-6xl px-4 sm:px-5">
@@ -243,7 +278,7 @@ export default function AgendaSection({
             <div
               role="group"
               aria-label="Formato da agenda"
-              className="inline-flex self-end rounded-full border border-white/10 bg-ink/70 p-1"
+              className="inline-flex self-end rounded-full border border-white/10 bg-ink/70 p-1 backdrop-blur-md"
             >
               <ViewToggleBtn
                 active={view === "calendar"}
@@ -277,8 +312,31 @@ export default function AgendaSection({
           </div>
         </div>
 
+        {/* Palco texturizado do calendário / lista */}
+        <div className="relative mt-6 overflow-hidden rounded-3xl border border-white/10 bg-ink/45 p-3 shadow-[0_24px_60px_-36px_rgba(0,0,0,0.75)] backdrop-blur-sm sm:mt-7 sm:p-4 md:p-5">
+          <div
+            className="pointer-events-none absolute inset-0 opacity-80"
+            aria-hidden
+            style={{
+              backgroundImage: `
+                radial-gradient(ellipse at 20% 0%, color-mix(in srgb, var(--theme-primary) 14%, transparent), transparent 55%),
+                radial-gradient(ellipse at 100% 45%, rgba(255,255,255,0.035), transparent 45%),
+                linear-gradient(165deg, rgba(255,255,255,0.035), transparent 42%)
+              `,
+            }}
+          />
+          <div className="bg-grid-soft pointer-events-none absolute inset-0 opacity-35" aria-hidden />
+          <div
+            className="pointer-events-none absolute inset-0 opacity-25"
+            aria-hidden
+            style={{
+              backgroundImage:
+                "repeating-linear-gradient(0deg, rgba(255,255,255,0.03) 0 1px, transparent 1px 4px)",
+            }}
+          />
+          <div className="relative z-[1]">
         {view === "list" ? (
-          <div className="mt-6">
+          <div>
             <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <label className="relative block min-w-0 flex-1 sm:max-w-sm">
                 <Search
@@ -290,7 +348,7 @@ export default function AgendaSection({
                   value={cityQuery}
                   onChange={(e) => setCityQuery(e.target.value)}
                   placeholder="Buscar cidade, teatro ou show…"
-                  className="w-full rounded-xl border border-white/10 bg-ink py-2.5 pl-9 pr-9 text-sm text-white outline-none placeholder:text-white/30 focus:border-gold/50"
+                  className="w-full rounded-xl border border-white/10 bg-ink/80 py-2.5 pl-9 pr-9 text-sm text-white outline-none placeholder:text-white/30 focus:border-gold/50"
                 />
                 {cityQuery && (
                   <button
@@ -304,7 +362,8 @@ export default function AgendaSection({
                 )}
               </label>
               <p className="shrink-0 text-xs text-white/40 sm:text-right">
-                {listEvents.length} de {filtered.length} shows
+                Mostrando {Math.min(listVisible, listEvents.length)} de{" "}
+                {listEvents.length} shows
               </p>
             </div>
 
@@ -314,6 +373,7 @@ export default function AgendaSection({
                 {cityQuery.trim() ? ` para “${cityQuery.trim()}”` : ""}.
               </div>
             ) : (
+              <>
               <div className="overflow-hidden rounded-xl border border-white/10 bg-ink">
                 {listGroups.map((group) => (
                   <div key={group.key}>
@@ -393,46 +453,65 @@ export default function AgendaSection({
                   </div>
                 ))}
               </div>
+              {hasMoreList && (
+                <div className="mt-4 flex justify-center">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setListVisible((n) =>
+                        Math.min(n + pageSize, listEvents.length)
+                      )
+                    }
+                    className="rounded-full border border-gold/40 bg-gold/10 px-6 py-2.5 text-sm font-semibold text-gold transition hover:bg-gold hover:text-ink"
+                  >
+                    Ver mais{" "}
+                    {Math.min(pageSize, listEvents.length - listVisible)} shows
+                  </button>
+                </div>
+              )}
+              </>
             )}
           </div>
         ) : null}
 
-        {/* Calendar + detail */}
+        {/* Calendar + detail — largura total, sem faixas vazias */}
         <div
-          ref={zoneRef}
-          className={`mt-8 grid gap-4 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,0.9fr)] lg:items-start lg:gap-0 ${
+          className={`mt-0 grid w-full grid-cols-1 items-start gap-4 lg:grid-cols-[minmax(0,1.65fr)_minmax(280px,0.95fr)] lg:gap-5 ${
             view !== "calendar" ? "hidden" : ""
-          } ${cursorActive ? "md:cursor-none" : ""}`}
-          onMouseEnter={onZoneEnter}
-          onMouseLeave={onZoneLeave}
+          }`}
         >
-          {/* Calendar panel — altura natural (não estica com o painel) */}
-          <div className="h-fit self-start [perspective:1000px]">
-          <TiltCard
-            maxTilt={1}
-            glare={false}
-            onMouseEnter={() => setTip("idle")}
-            className="relative h-auto overflow-hidden rounded-2xl border border-white/10 bg-ink lg:rounded-tr-none lg:border-r-0"
-          >
+          {/* Calendar panel */}
           <motion.div
-            initial={{ opacity: 0, y: 24 }}
+            initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
-            transition={{ duration: 0.5 }}
+            transition={{ duration: 0.45 }}
+            className="relative min-w-0 w-full overflow-hidden rounded-2xl border border-white/10 bg-ink/95 shadow-[0_24px_60px_-36px_rgba(0,0,0,0.75)]"
           >
+            <div
+              className="pointer-events-none absolute inset-0 opacity-40"
+              aria-hidden
+              style={{
+                backgroundImage:
+                  "radial-gradient(ellipse at 12% 0%, color-mix(in srgb, var(--theme-primary) 18%, transparent), transparent 55%)",
+              }}
+            />
+
             {/* Month nav */}
-            <div className="flex items-center justify-between border-b border-white/10 px-4 py-4 sm:px-6">
+            <div className="relative z-10 flex items-center gap-3 border-b border-white/10 px-3 py-3.5 sm:px-4 sm:py-4">
               <button
+                type="button"
+                aria-label="Mês anterior"
                 disabled={monthIndex <= 0}
                 onClick={() =>
                   monthIndex > 0 && setCursor(monthsWithShows[monthIndex - 1])
                 }
-                className="rounded-full border border-white/10 px-3 py-1.5 text-sm text-white/70 transition hover:border-gold hover:text-gold disabled:opacity-30"
+                className="flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-full border border-white/12 bg-white/[0.03] text-base text-white/75 transition hover:border-gold hover:bg-gold/10 hover:text-gold disabled:cursor-not-allowed disabled:opacity-30"
               >
                 ←
               </button>
-              <div className="text-center">
-                <h3 className="font-display text-xl font-bold text-white sm:text-2xl">
+              <div className="min-w-0 flex-1 text-center">
+                <h3 className="font-display text-xl font-bold tracking-tight text-white sm:text-2xl">
                   {cursor ? (
                     <>
                       <span className="text-gold">{MONTHS_PT[cursor.m]}</span>{" "}
@@ -442,36 +521,40 @@ export default function AgendaSection({
                     "—"
                   )}
                 </h3>
-                <p className="text-[11px] uppercase tracking-widest text-white/35">
+                <p className="mt-0.5 text-[10px] font-medium uppercase tracking-[0.22em] text-white/40">
                   {monthIndex + 1}/{monthsWithShows.length || 1} meses com shows
                 </p>
               </div>
               <button
-                disabled={monthIndex < 0 || monthIndex >= monthsWithShows.length - 1}
+                type="button"
+                aria-label="Próximo mês"
+                disabled={
+                  monthIndex < 0 || monthIndex >= monthsWithShows.length - 1
+                }
                 onClick={() =>
                   monthIndex < monthsWithShows.length - 1 &&
                   setCursor(monthsWithShows[monthIndex + 1])
                 }
-                className="rounded-full border border-white/10 px-3 py-1.5 text-sm text-white/70 transition hover:border-gold hover:text-gold disabled:opacity-30"
+                className="flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-full border border-white/12 bg-white/[0.03] text-base text-white/75 transition hover:border-gold hover:bg-gold/10 hover:text-gold disabled:cursor-not-allowed disabled:opacity-30"
               >
                 →
               </button>
             </div>
 
             {/* Weekdays */}
-            <div className="grid grid-cols-7 gap-1 px-2 pt-3 sm:gap-1.5 sm:px-4">
+            <div className="relative z-10 grid grid-cols-7 gap-1 px-2.5 pt-3 sm:gap-1.5 sm:px-4 sm:pt-4">
               {WEEKDAYS.map((d) => (
                 <div
                   key={d}
-                  className="py-1 text-center text-[10px] font-semibold uppercase tracking-wider text-white/35 sm:text-xs"
+                  className="py-1 text-center text-[10px] font-semibold uppercase tracking-[0.14em] text-white/40 sm:text-[11px]"
                 >
                   {d}
                 </div>
               ))}
             </div>
 
-            {/* Days — altura fixa idêntica em todos os meses */}
-            <div className="cal-days-grid grid grid-cols-7 gap-1 p-2 pb-3 sm:gap-1.5 sm:p-4 sm:pb-4">
+            {/* Days — ocupa 100% da largura do painel */}
+            <div className="cal-days-grid relative z-10 grid w-full grid-cols-7 gap-1 px-2.5 pb-2.5 pt-1.5 sm:gap-1.5 sm:px-4 sm:pb-3">
               {calendarDays.map((day) => {
                 const has = day.events.length > 0;
                 const active = selectedKey === day.key;
@@ -483,33 +566,40 @@ export default function AgendaSection({
                     type="button"
                     disabled={!has}
                     onClick={() => has && pickShow(day.key)}
-                    onMouseEnter={() => has && setTip("day")}
-                    onMouseLeave={() => setTip("idle")}
                     data-active={active}
-                    className={`cal-day-live group relative flex h-14 w-full flex-col items-center overflow-hidden rounded-lg pt-1 sm:h-16 sm:rounded-xl sm:pt-1.5 ${
+                    className={`cal-day-live group relative flex w-full flex-col items-center justify-start overflow-hidden rounded-lg px-0.5 pt-1 sm:rounded-xl sm:pt-1.5 ${
                       !day.inMonth
-                        ? "opacity-20"
+                        ? "pointer-events-none opacity-[0.18]"
                         : has
-                          ? "border border-gold/30 bg-ink-card animate-pulse-gold"
-                          : "border border-white/[0.04] bg-white/[0.02]"
-                    } ${active ? "ring-2 ring-gold" : ""} ${
-                      has ? "hover:-translate-y-0.5 hover:border-gold" : ""
+                          ? "cursor-pointer border border-gold/35 bg-ink-card animate-pulse-gold"
+                          : "cursor-default border border-white/[0.05] bg-white/[0.025]"
+                    } ${
+                      active ? "z-[1] ring-2 ring-gold shadow-[0_0_28px_-8px_rgba(212,175,55,0.55)]" : ""
+                    } ${
+                      has
+                        ? "hover:-translate-y-0.5 hover:border-gold hover:bg-gold/[0.08]"
+                        : ""
                     } transition-all duration-200`}
                   >
                     <span
-                      className={`relative z-10 text-[10px] font-semibold leading-none sm:text-xs ${
-                        has ? "text-gold" : "text-white/30"
+                      className={`relative z-10 text-[11px] font-bold leading-none sm:text-sm ${
+                        has ? "text-gold" : "text-white/40"
                       }`}
                     >
                       {day.date.getDate()}
                     </span>
                     {has && main && (
                       <>
-                        <span className="relative z-10 mt-0.5 line-clamp-2 w-full px-0.5 text-center text-[7px] font-bold leading-[1.05] text-white sm:mt-0.5 sm:text-[9px] sm:leading-tight">
+                        <span className="relative z-10 mt-1 line-clamp-2 w-full px-0.5 text-center text-[8px] font-semibold leading-[1.15] text-white/90 sm:mt-1.5 sm:text-[10px] sm:leading-tight">
                           {main.city}
                         </span>
-                        <span className="absolute bottom-0.5 left-1/2 z-10 h-1 w-1 -translate-x-1/2 rounded-full bg-gold sm:bottom-1" />
-                        <span className="pointer-events-none absolute inset-0 z-[5] bg-gradient-to-t from-gold/25 to-transparent opacity-0 transition-opacity group-hover:opacity-100" />
+                        {day.events.length > 1 && (
+                          <span className="relative z-10 mt-0.5 text-[8px] font-bold text-gold/80">
+                            +{day.events.length - 1}
+                          </span>
+                        )}
+                        <span className="absolute bottom-1 left-1/2 z-10 h-1 w-1 -translate-x-1/2 rounded-full bg-gold sm:bottom-1.5" />
+                        <span className="pointer-events-none absolute inset-0 z-[5] bg-gradient-to-t from-gold/30 via-transparent to-transparent opacity-0 transition-opacity group-hover:opacity-100" />
                       </>
                     )}
                   </button>
@@ -517,53 +607,48 @@ export default function AgendaSection({
               })}
             </div>
 
-            {/* Month strip of show days — densifies bottom */}
+            {/* Atalhos do mês — colados no grid */}
             {cursor && (
-              <div className="cal-month-chips thin-scroll flex gap-2 overflow-x-auto overscroll-x-contain border-t border-white/10 px-3 py-3 pb-2.5 sm:px-4">
-                {calendarDays
-                  .filter((d) => d.inMonth && d.events.length > 0)
-                  .map((d) => (
-                    <button
-                      key={`chip-${d.key}`}
-                      onClick={() => pickShow(d.key)}
-                      onMouseEnter={() => setTip("day")}
-                      onMouseLeave={() => setTip("idle")}
-                      className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-medium transition ${
-                        selectedKey === d.key
-                          ? "bg-gold text-ink"
-                          : "bg-white/5 text-white/70 hover:bg-gold/20 hover:text-gold"
-                      }`}
-                    >
-                      {d.date.getDate()} · {d.events[0].city}
-                    </button>
-                  ))}
+              <div className="relative z-10 border-t border-white/10 bg-black/20 px-2.5 py-2.5 sm:px-4 sm:py-3">
+                <p className="mb-2 text-[9px] font-semibold uppercase tracking-[0.2em] text-white/35">
+                  Shows neste mês
+                </p>
+                <div className="cal-month-chips thin-scroll flex gap-1.5 overflow-x-auto overscroll-x-contain pb-0.5">
+                  {calendarDays
+                    .filter((d) => d.inMonth && d.events.length > 0)
+                    .map((d) => (
+                      <button
+                        key={`chip-${d.key}`}
+                        type="button"
+                        onClick={() => pickShow(d.key)}
+                        className={`shrink-0 cursor-pointer rounded-full px-3 py-1.5 text-[11px] font-medium transition sm:text-xs ${
+                          selectedKey === d.key
+                            ? "bg-gold text-ink shadow-[0_0_18px_-4px_rgba(212,175,55,0.55)]"
+                            : "bg-white/[0.06] text-white/75 hover:bg-gold/20 hover:text-gold"
+                        }`}
+                      >
+                        {d.date.getDate()} · {d.events[0].city}
+                      </button>
+                    ))}
+                </div>
               </div>
             )}
           </motion.div>
-          </TiltCard>
-          </div>
 
-          {/* Detail panel — denso, com tilt */}
+          {/* Detail panel */}
           <motion.div
             animate={detailPulse}
-            className="h-fit self-start [perspective:1000px] lg:-ml-px"
+            initial={{ opacity: 0, x: 16 }}
+            whileInView={{ opacity: 1, x: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.45, delay: 0.08 }}
+            className="relative h-fit min-w-0 w-full overflow-hidden rounded-2xl border border-white/12 bg-gradient-to-b from-ink-card to-ink shadow-[0_20px_50px_-28px_rgba(0,0,0,0.65)] ring-1 ring-gold/15 lg:sticky lg:top-24"
           >
-            <TiltCard
-              maxTilt={1}
-              glare={false}
-              onMouseEnter={() => setTip("view")}
-              onMouseLeave={() => setTip("idle")}
-              className="relative h-auto overflow-hidden rounded-2xl border border-gold/25 bg-gradient-to-b from-ink-card to-ink lg:rounded-tl-none"
-            >
-            <motion.div
-              initial={{ opacity: 0, x: 20 }}
-              whileInView={{ opacity: 1, x: 0 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.5, delay: 0.1 }}
-            >
-            <div className="pointer-events-none absolute -right-16 -top-16 h-48 w-48 rounded-full bg-gold/15 blur-[70px]" />
+            <div
+              className="pointer-events-none absolute -right-16 -top-16 h-48 w-48 rounded-full bg-gold/15 blur-[70px]"
+              aria-hidden
+            />
 
-            {/* Flash ao re-clicar o mesmo (ou qualquer) show — confirma a seleção */}
             <AnimatePresence>
               {selectAck > 0 && (
                 <motion.div
@@ -578,19 +663,26 @@ export default function AgendaSection({
               )}
             </AnimatePresence>
 
-            <div className="relative z-10 flex h-full flex-col gap-4 p-5 sm:p-6">
-              <p className="text-xs font-semibold uppercase tracking-[0.25em] text-gold">
-                Show selecionado
-              </p>
+            <div className="relative z-10 flex h-full flex-col gap-4 p-4 sm:p-5">
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-[10px] font-bold uppercase tracking-[0.28em] text-gold">
+                  Show selecionado
+                </p>
+                {selectedEvents.length > 0 && (
+                  <span className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[10px] font-medium text-white/40">
+                    {selectedEvents.length} neste dia
+                  </span>
+                )}
+              </div>
 
               <AnimatePresence mode="wait">
                 {selectedEvents.length > 0 ? (
                   <motion.div
                     key={selectedKey}
-                    initial={{ opacity: 0, y: 12 }}
-                    animate={{ opacity: 1, y: 0 }}
+                    initial={{ opacity: 0, y: 14, filter: "blur(4px)" }}
+                    animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
                     exit={{ opacity: 0, y: -8 }}
-                    transition={{ duration: 0.25 }}
+                    transition={{ duration: 0.3 }}
                     className="flex flex-1 flex-col gap-4"
                   >
                     {selectedEvents.map((ev) => {
@@ -602,29 +694,32 @@ export default function AgendaSection({
                       return (
                         <div key={ev.id} className="flex flex-1 flex-col gap-4">
                           <div className="flex items-start gap-3">
-                            <div className="flex h-14 w-14 shrink-0 flex-col items-center justify-center rounded-xl bg-gold/15 text-gold">
+                            <div className="flex h-14 w-14 shrink-0 flex-col items-center justify-center rounded-2xl border border-gold/30 bg-gold/12 text-gold">
                               <span className="font-display text-2xl font-black leading-none">
                                 {parseDate(ev.date).getDate()}
                               </span>
-                              <span className="text-[10px] font-bold tracking-wider">
+                              <span className="text-[9px] font-bold tracking-wider">
                                 {MONTHS_PT[parseDate(ev.date).getMonth()]
                                   .slice(0, 3)
                                   .toUpperCase()}
                               </span>
                             </div>
-                            <div className="min-w-0">
-                              <h4 className="font-display text-2xl font-black leading-tight text-white">
+                            <div className="min-w-0 pt-0.5">
+                              <h4 className="font-display text-lg font-black leading-tight text-white sm:text-xl">
                                 {ev.city}
-                                <span className="text-white/35"> / {ev.state}</span>
+                                <span className="text-white/35">
+                                  {" "}
+                                  / {ev.state}
+                                </span>
                               </h4>
-                              <p className="mt-0.5 text-sm text-white/55">
+                              <p className="mt-0.5 text-sm text-white/50">
                                 {formatFullDate(ev.date)}
                                 {ev.time ? ` · ${formatTime(ev.time)}` : ""}
                               </p>
                             </div>
                           </div>
 
-                          <div className="space-y-2 rounded-xl border border-white/10 bg-black/30 p-3.5">
+                          <div className="space-y-0 overflow-hidden rounded-xl border border-white/10 bg-black/25">
                             <Row label="Espetáculo" value={ev.name} />
                             <Row
                               label="Local"
@@ -642,9 +737,8 @@ export default function AgendaSection({
                             </p>
                           )}
 
-                          {/* Preenche o painel com vida — countdown */}
-                          <div className="rounded-xl border border-gold/20 bg-gold/5 p-3.5">
-                            <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-gold">
+                          <div className="rounded-xl border border-gold/20 bg-gold/[0.06] p-4">
+                            <p className="mb-2.5 text-[10px] font-semibold uppercase tracking-[0.2em] text-gold">
                               Contagem regressiva
                             </p>
                             <Countdown
@@ -652,18 +746,18 @@ export default function AgendaSection({
                             />
                           </div>
 
-                          {/* Outros shows do mês — densifica o espaço */}
                           {monthShows.length > 0 && (
-                            <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
-                              <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-white/40">
+                            <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3.5">
+                              <p className="mb-2.5 text-[10px] font-semibold uppercase tracking-[0.2em] text-white/40">
                                 Também neste mês
                               </p>
-                              <ul className="space-y-1.5">
-                                {monthShows.slice(0, 4).map((other) => (
+                              <ul className="space-y-1">
+                                {monthShows.slice(0, 5).map((other) => (
                                   <li key={other.id}>
                                     <button
+                                      type="button"
                                       onClick={() => pickShow(other.date)}
-                                      className="flex w-full items-center justify-between rounded-lg px-2 py-1.5 text-left text-sm transition hover:bg-gold/10"
+                                      className="flex w-full cursor-pointer items-center justify-between rounded-lg px-2.5 py-2 text-left text-sm transition hover:bg-gold/10"
                                     >
                                       <span className="font-medium text-white/80">
                                         <span className="text-gold">
@@ -681,12 +775,11 @@ export default function AgendaSection({
                             </div>
                           )}
 
-                          <div className="mt-auto flex flex-wrap gap-2 pt-1">
+                          <div className="mt-auto flex flex-wrap gap-2.5 pt-1">
                             <Link
                               href={`/shows/${ev.slug}`}
-                              className="btn-live rounded-full border border-white/20 px-5 py-2.5 text-sm font-semibold text-white hover:border-gold hover:text-gold"
+                              className="cursor-pointer rounded-full border border-white/20 bg-white/[0.03] px-5 py-2.5 text-sm font-semibold text-white transition hover:border-gold/50 hover:text-gold"
                               onMouseMove={trackBtn}
-                              onMouseEnter={() => setTip("view")}
                             >
                               Ver detalhes
                             </Link>
@@ -695,9 +788,8 @@ export default function AgendaSection({
                                 href={ev.tickets_link}
                                 target="_blank"
                                 rel="noreferrer"
-                                className="btn-live inline-flex items-center gap-2 rounded-full bg-gold px-5 py-2.5 text-sm font-semibold text-ink"
+                                className="inline-flex cursor-pointer items-center gap-2 rounded-full bg-gold px-5 py-2.5 text-sm font-bold text-ink transition hover:brightness-110"
                                 onMouseMove={trackBtn}
-                                onMouseEnter={() => setTip("cta")}
                               >
                                 <ShoppingCart size={16} strokeWidth={2.25} />
                                 Comprar ingressos
@@ -713,19 +805,26 @@ export default function AgendaSection({
                     key="empty"
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
-                    className="flex flex-1 flex-col justify-center gap-3 py-6 text-center"
+                    className="flex flex-1 flex-col items-center justify-center gap-3 py-10 text-center"
                   >
-                    <div className="mx-auto h-10 w-10 rounded-full border border-dashed border-gold/40" />
-                    <p className="text-sm text-white/45">
-                      Selecione um dia iluminado no calendário.
+                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-dashed border-gold/40 bg-gold/[0.06]">
+                      <CalendarDays
+                        size={20}
+                        className="text-gold/70"
+                        aria-hidden
+                      />
+                    </div>
+                    <p className="max-w-[16rem] text-sm leading-relaxed text-white/45">
+                      Clique em um dia iluminado no calendário para ver cidade,
+                      horário e ingressos.
                     </p>
                   </motion.div>
                 )}
               </AnimatePresence>
             </div>
-            </motion.div>
-            </TiltCard>
           </motion.div>
+        </div>
+          </div>
         </div>
 
         {/* Bottom density: next cities ticker */}
@@ -819,8 +918,8 @@ function Chip({
 
 function Row({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex items-baseline justify-between gap-3 text-sm">
-      <span className="text-white/35">{label}</span>
+    <div className="flex items-baseline justify-between gap-3 border-b border-white/8 px-3.5 py-2.5 text-sm last:border-b-0">
+      <span className="text-white/40">{label}</span>
       <span className="text-right font-medium text-white">{value}</span>
     </div>
   );

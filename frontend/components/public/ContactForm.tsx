@@ -52,10 +52,24 @@ function optionsFor(
 /**
  * Contratação com "rodagem" sticky/parallax.
  */
-export default function ContactForm() {
-  const [cfg, setCfg] = useState<ContactFormConfig>(DEFAULT_CONTACT_FORM);
+export default function ContactForm({ config }: { config?: SiteConfig }) {
+  const [cfg, setCfg] = useState<ContactFormConfig>(() =>
+    (config?.contact_form_config as ContactFormConfig) || DEFAULT_CONTACT_FORM
+  );
+  const [section, setSection] = useState({
+    eyebrow: config?.contact_eyebrow || "Contratação",
+    title1: config?.contact_title_line1 || "FAÇA SEU EVENTO",
+    title2: config?.contact_title_line2 || "CORPORATIVO",
+    hint: config?.contact_scroll_hint || "Role para revelar o formulário",
+    bg:
+      config?.contact_bg_image_display ||
+      config?.contact_bg_image_url ||
+      "/images/rei-dos-peao.png",
+  });
   const [form, setForm] = useState<Values>(() =>
-    buildInitial(DEFAULT_CONTACT_FORM)
+    buildInitial(
+      (config?.contact_form_config as ContactFormConfig) || DEFAULT_CONTACT_FORM
+    )
   );
   const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">(
     "idle"
@@ -96,6 +110,16 @@ export default function ContactForm() {
           DEFAULT_CONTACT_FORM;
         setCfg(next);
         setForm(buildInitial(next));
+        setSection({
+          eyebrow: data.contact_eyebrow || "Contratação",
+          title1: data.contact_title_line1 || "FAÇA SEU EVENTO",
+          title2: data.contact_title_line2 || "CORPORATIVO",
+          hint: data.contact_scroll_hint || "Role para revelar o formulário",
+          bg:
+            data.contact_bg_image_display ||
+            data.contact_bg_image_url ||
+            "/images/rei-dos-peao.png",
+        });
       })
       .catch(() => {});
   }, []);
@@ -235,14 +259,14 @@ export default function ContactForm() {
   return (
     <div id="contato" ref={sectionRef} className="relative h-[220vh] bg-ink">
       <SoftCursor active={cursorActive} mode={cursorMode} />
-      <div className="sticky top-0 h-[100svh] overflow-hidden">
+      <div className="sticky top-0 z-0 h-[100svh] overflow-hidden">
         <motion.div
           className="absolute inset-0"
           style={{ scale: bgScale, y: bgY }}
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
-            src="/images/rei-dos-peao.png"
+            src={section.bg}
             alt=""
             className="absolute left-1/2 top-1/2 h-auto w-[min(140vw,1400px)] max-w-none -translate-x-1/2 -translate-y-1/2 object-contain opacity-40 mix-blend-screen"
           />
@@ -262,13 +286,13 @@ export default function ContactForm() {
             className="mx-auto max-w-4xl text-center"
           >
             <p className="text-xs font-semibold uppercase tracking-[0.35em] text-gold">
-              Contratação
+              {section.eyebrow}
             </p>
             <h2 className="mt-3 font-display text-4xl font-black leading-[0.95] text-white sm:text-5xl md:text-6xl lg:text-7xl">
-              FAÇA SEU EVENTO
+              {section.title1}
               <br />
               <span className="inline-flex items-center gap-3 text-gold">
-                CORPORATIVO
+                {section.title2}
                 <span className="hidden sm:inline-flex">
                   <AnimatedArrow />
                 </span>
@@ -278,7 +302,7 @@ export default function ContactForm() {
               style={{ opacity: hintOpacity }}
               className="mx-auto mt-4 flex max-w-xl items-center justify-center gap-2 text-sm text-white/60 sm:text-base"
             >
-              Role para revelar o formulário
+              {section.hint}
               <span className="text-gold sm:hidden">
                 <AnimatedArrow />
               </span>

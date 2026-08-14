@@ -22,6 +22,7 @@ import {
 import Topbar from "@/components/admin/Topbar";
 import AdminHero from "@/components/admin/AdminHero";
 import { api, resultsOf } from "@/lib/api";
+import { ADMIN_TONES, type AdminToneKey } from "@/lib/adminTones";
 import type { ModuleKey, Role, User } from "@/lib/types";
 import { useAuth } from "@/lib/auth";
 import ThemedSelect from "@/components/ui/ThemedSelect";
@@ -38,50 +39,65 @@ const DELEGATABLE: {
   label: string;
   hint: string;
   Icon: typeof LayoutDashboard;
+  tone: AdminToneKey;
 }[] = [
   {
     key: "dashboard",
     label: "Dashboard",
     hint: "Visão geral e gráficos",
     Icon: LayoutDashboard,
+    tone: "dashboard",
   },
   {
     key: "events",
     label: "Eventos",
     hint: "Agenda e cadastro de shows",
     Icon: CalendarDays,
+    tone: "events",
   },
   {
     key: "crm",
     label: "CRM Kanban",
     hint: "Pipeline de contratação",
     Icon: Kanban,
+    tone: "crm",
   },
   {
     key: "leads",
     label: "Leads",
     hint: "Exportações e leads",
     Icon: Download,
+    tone: "crm",
   },
   {
     key: "config",
     label: "Configurações",
     hint: "Textos, cores e redes do site",
     Icon: Settings,
+    tone: "config",
   },
   {
     key: "users",
     label: "Equipe",
     hint: "Cadastrar usuários e permissões",
     Icon: Users,
+    tone: "users",
   },
   {
     key: "audit",
     label: "Auditoria",
     hint: "Histórico de ações do sistema",
     Icon: ScrollText,
+    tone: "audit",
   },
 ];
+
+const ROLE_TONE: Record<Role, string> = {
+  admin: "border-gold/35 bg-gold/15 text-gold",
+  gerente: "border-sky-400/35 bg-sky-500/15 text-sky-300",
+  comercial: "border-emerald-400/35 bg-emerald-500/15 text-emerald-300",
+  visualizador: "border-violet-400/35 bg-violet-500/15 text-violet-300",
+};
 
 const EMPTY_PERMS: Record<string, boolean> = Object.fromEntries(
   DELEGATABLE.map((m) => [m.key, false])
@@ -235,7 +251,7 @@ export default function UsuariosPage() {
           actions={
             <button
               onClick={openCreate}
-              className="inline-flex items-center gap-2 rounded-full bg-gold px-4 py-2.5 text-sm font-semibold text-ink shadow-[0_0_24px_-6px_color-mix(in_srgb,var(--theme-primary)_55%,transparent)] transition hover:scale-[1.02]"
+              className="inline-flex items-center gap-2 rounded-full admin-tone-btn px-4 py-2.5 text-sm font-semibold shadow-[0_0_24px_-6px_color-mix(in_srgb,var(--admin-tone)_55%,transparent)] transition hover:scale-[1.02]"
             >
               <Plus size={16} /> Novo usuário
             </button>
@@ -247,7 +263,7 @@ export default function UsuariosPage() {
           ]}
         />
 
-        <div className="overflow-hidden rounded-2xl border border-white/10 bg-ink-card/40">
+        <div className="overflow-hidden admin-glass">
           <table className="w-full text-left text-sm">
             <thead className="bg-ink-soft/80 text-white/50">
               <tr>
@@ -282,8 +298,13 @@ export default function UsuariosPage() {
                       </div>
                     </td>
                     <td className="px-4 py-3">
-                      <span className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-xs capitalize text-white/70">
-                        <Shield size={12} className="text-gold" />
+                      <span
+                        className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs capitalize ${
+                          ROLE_TONE[u.role] ||
+                          "border-white/10 bg-white/5 text-white/70"
+                        }`}
+                      >
+                        <Shield size={12} />
                         {u.role}
                       </span>
                     </td>
@@ -298,9 +319,14 @@ export default function UsuariosPage() {
                             <span
                               key={m.key}
                               title={m.label}
-                              className="inline-flex items-center gap-1 rounded-md border border-white/10 bg-ink px-1.5 py-1 text-[10px] text-white/60"
+                              className="inline-flex items-center gap-1 rounded-md border px-1.5 py-1 text-[10px]"
+                              style={{
+                                color: ADMIN_TONES[m.tone].hex,
+                                borderColor: `color-mix(in srgb, ${ADMIN_TONES[m.tone].hex} 35%, transparent)`,
+                                background: `color-mix(in srgb, ${ADMIN_TONES[m.tone].hex} 12%, transparent)`,
+                              }}
                             >
-                              <m.Icon size={11} className="text-gold" />
+                              <m.Icon size={11} />
                               {m.label}
                             </span>
                           ))}
@@ -366,7 +392,7 @@ export default function UsuariosPage() {
 
       {modal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
-          <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl border border-white/10 bg-ink-card p-6 shadow-2xl">
+          <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto admin-glass p-6 shadow-2xl">
             <div className="flex items-start gap-3">
               <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-gold/15 text-gold">
                 {editing ? <Pencil size={18} /> : <Plus size={18} />}
@@ -452,18 +478,28 @@ export default function UsuariosPage() {
                         <li key={m.key}>
                           <label
                             className={`flex cursor-pointer items-start gap-3 rounded-xl border px-3 py-2.5 transition ${
-                              on
-                                ? "border-gold/40 bg-gold/10"
-                                : "border-white/8 bg-ink/40 hover:bg-white/5"
+                              on ? "" : "border-white/8 bg-ink/40 hover:bg-white/5"
                             }`}
+                            style={
+                              on
+                                ? {
+                                    borderColor: `color-mix(in srgb, ${ADMIN_TONES[m.tone].hex} 42%, transparent)`,
+                                    background: `color-mix(in srgb, ${ADMIN_TONES[m.tone].hex} 12%, transparent)`,
+                                  }
+                                : undefined
+                            }
                           >
                             <input
                               type="checkbox"
                               checked={on}
                               onChange={() => togglePerm(m.key)}
-                              className="mt-1 accent-gold"
+                              className="mt-1"
+                              style={{ accentColor: ADMIN_TONES[m.tone].hex }}
                             />
-                            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-ink text-gold">
+                            <span
+                              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-ink"
+                              style={{ color: ADMIN_TONES[m.tone].hex }}
+                            >
                               <m.Icon size={15} />
                             </span>
                             <span>

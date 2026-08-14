@@ -21,11 +21,14 @@ from core.views import (
     LeadExportView,
     NotificationViewSet,
     SiteConfigView,
+    SponsorViewSet,
     TimelineView,
 )
 from crm.views import (
     CardAttachmentViewSet,
     CardChecklistItemViewSet,
+    CardCommentViewSet,
+    CardNoteViewSet,
     CardViewSet,
     KanbanColumnViewSet,
     LabelViewSet,
@@ -49,10 +52,13 @@ router.register("columns", KanbanColumnViewSet, basename="column")
 router.register("cards", CardViewSet, basename="card")
 router.register("labels", LabelViewSet, basename="label")
 router.register("checklist-items", CardChecklistItemViewSet, basename="checklist-item")
+router.register("card-notes", CardNoteViewSet, basename="card-note")
+router.register("card-comments", CardCommentViewSet, basename="card-comment")
 router.register("attachments", CardAttachmentViewSet, basename="attachment")
 router.register("users", UserViewSet, basename="user")
 router.register("audit-logs", AuditLogViewSet, basename="audit-log")
 router.register("notifications", NotificationViewSet, basename="notification")
+router.register("sponsors", SponsorViewSet, basename="sponsor")
 
 public_router = DefaultRouter(trailing_slash=False)
 public_router.register("events", PublicEventViewSet, basename="public-event")

@@ -18,37 +18,41 @@ export default function AdminHero({
 }) {
   return (
     <motion.div
-      initial={{ opacity: 0, y: 14 }}
+      initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
-      className="relative overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-br from-ink-card via-ink-card to-gold/5 p-5 sm:p-6"
+      transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+      className="admin-glass relative p-5 sm:p-6"
     >
       <motion.div
-        className="pointer-events-none absolute -right-10 -top-10 h-40 w-40 rounded-full bg-gold/10 blur-3xl"
-        animate={{ opacity: [0.45, 0.85, 0.45], scale: [1, 1.08, 1] }}
-        transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }}
+        className="admin-tone-glow pointer-events-none absolute -right-12 -top-14 h-48 w-48 rounded-full blur-3xl"
+        animate={{ opacity: [0.35, 0.75, 0.35], scale: [1, 1.12, 1] }}
+        transition={{ duration: 7, repeat: Infinity, ease: "easeInOut" }}
         aria-hidden
       />
       <div
-        className="pointer-events-none absolute -bottom-16 left-1/3 h-32 w-32 rounded-full bg-gold/5 blur-3xl"
+        className="pointer-events-none absolute -bottom-20 left-[20%] h-40 w-40 rounded-full bg-gold/10 blur-3xl"
+        aria-hidden
+      />
+      <div
+        className="admin-tone-line pointer-events-none absolute inset-x-0 top-0 h-px"
         aria-hidden
       />
 
       <div className="relative flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex items-start gap-3.5">
           <motion.span
-            animate={{ y: [0, -3, 0] }}
-            transition={{ duration: 3.2, repeat: Infinity, ease: "easeInOut" }}
-            className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-gold/25 bg-gold/15 text-gold shadow-[0_0_24px_-8px_color-mix(in_srgb,var(--theme-primary)_50%,transparent)]"
+            animate={{ y: [0, -4, 0] }}
+            transition={{ duration: 3.4, repeat: Infinity, ease: "easeInOut" }}
+            className="admin-tone-icon flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border"
           >
             <Icon size={22} strokeWidth={2.2} />
           </motion.span>
           <div>
-            <h2 className="font-display text-xl font-bold text-white sm:text-2xl">
+            <h2 className="font-display text-xl font-bold tracking-tight text-white sm:text-2xl">
               {title}
             </h2>
             {subtitle && (
-              <p className="mt-1 max-w-xl text-sm leading-relaxed text-white/45">
+              <p className="mt-1.5 max-w-xl text-sm leading-relaxed text-white/50">
                 {subtitle}
               </p>
             )}
@@ -58,7 +62,7 @@ export default function AdminHero({
           <motion.div
             initial={{ opacity: 0, x: 8 }}
             animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: 0.15, duration: 0.35 }}
+            transition={{ delay: 0.12, duration: 0.35 }}
             className="flex flex-wrap items-center gap-2 sm:justify-end"
           >
             {actions}
@@ -67,24 +71,24 @@ export default function AdminHero({
       </div>
 
       {stats && stats.length > 0 && (
-        <div className="relative mt-5 grid gap-2 sm:grid-cols-3">
+        <div className="relative mt-5 grid gap-2.5 sm:grid-cols-3">
           {stats.map((s, i) => {
             const StatIcon = s.icon;
             return (
               <motion.div
                 key={s.label}
-                initial={{ opacity: 0, y: 8 }}
+                initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.12 + i * 0.06, duration: 0.35 }}
-                className="flex items-center gap-3 rounded-xl border border-white/8 bg-ink/40 px-3.5 py-2.5 transition hover:border-gold/25 hover:bg-ink/55"
+                transition={{ delay: 0.1 + i * 0.06, duration: 0.35 }}
+                className="admin-glass-soft flex items-center gap-3 px-3.5 py-2.5 transition hover:border-[color-mix(in_srgb,var(--admin-tone)_35%,transparent)]"
               >
                 {StatIcon && (
-                  <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-gold/10 text-gold">
+                  <span className="admin-tone-chip flex h-9 w-9 items-center justify-center rounded-xl border">
                     <StatIcon size={15} />
                   </span>
                 )}
                 <div className="min-w-0">
-                  <p className="truncate text-[11px] uppercase tracking-wider text-white/35">
+                  <p className="truncate text-[11px] uppercase tracking-wider text-white/40">
                     {s.label}
                   </p>
                   <p className="font-display text-lg font-bold text-white">

@@ -83,7 +83,7 @@ export default function AuditoriaPage() {
           actions={
             <a
               href={exportUrl}
-              className="inline-flex items-center gap-2 rounded-full bg-gold/15 px-4 py-2.5 text-sm font-medium text-gold transition hover:bg-gold/25"
+              className="inline-flex items-center gap-2 rounded-full admin-tone-chip border px-4 py-2.5 text-sm font-medium transition hover:brightness-125"
             >
               <Download size={14} /> Exportar CSV
             </a>
@@ -99,7 +99,7 @@ export default function AuditoriaPage() {
           ]}
         />
 
-        <div className="rounded-2xl border border-white/10 bg-ink-card/50 p-4">
+        <div className="admin-glass p-4">
           <div className="mb-3 flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-white/40">
             <Filter size={13} className="text-gold" /> Filtros
           </div>
@@ -155,7 +155,7 @@ export default function AuditoriaPage() {
           </div>
         </div>
 
-        <div className="overflow-hidden rounded-2xl border border-white/10 bg-ink-card/40">
+        <div className="overflow-hidden admin-glass">
           <table className="w-full text-left text-sm">
             <thead className="bg-ink-soft/80 text-white/50">
               <tr>

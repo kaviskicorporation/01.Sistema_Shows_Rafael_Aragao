@@ -1,0 +1,11 @@
+"use client";
+
+import PageTransition from "@/components/PageTransition";
+
+export default function ShowsLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  return <PageTransition>{children}</PageTransition>;
+}

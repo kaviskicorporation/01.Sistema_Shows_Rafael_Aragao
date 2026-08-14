@@ -13,15 +13,17 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from accounts.permissions import IsAdminRole, ModulePermission
+from core.audit import log_action
 from core.demo_data import DEMO_LEADS
 from crm.models import Card, CardHistory, KanbanColumn, Label, Lead
 from events.models import Event
 
-from .models import AuditLog, Notification, SiteConfig
+from .models import AuditLog, Notification, SiteConfig, Sponsor
 from .serializers import (
     AuditLogSerializer,
     NotificationSerializer,
     SiteConfigSerializer,
+    SponsorSerializer,
 )
 
 
@@ -58,6 +60,54 @@ class SiteConfigView(APIView):
             object_repr="Configuração do site",
         )
         return Response(serializer.data)
+
+
+class SponsorViewSet(viewsets.ModelViewSet):
+    """CRUD de patrocinadores (admin) — GET público lista ativos."""
+
+    serializer_class = SponsorSerializer
+    parser_classes = [JSONParser, MultiPartParser, FormParser]
+    module = "config"
+
+    def get_permissions(self):
+        if self.action in ("list", "retrieve"):
+            return [AllowAny()]
+        return [ModulePermission()]
+
+    def get_queryset(self):
+        qs = Sponsor.objects.all().order_by("order", "id")
+        user = self.request.user
+        if (
+            user
+            and user.is_authenticated
+            and getattr(user, "has_module", lambda _m: False)("config")
+        ):
+            return qs
+        return qs.filter(is_active=True)
+
+    def perform_create(self, serializer):
+        if "order" not in serializer.validated_data:
+            last = Sponsor.objects.order_by("-order").first()
+            instance = serializer.save(order=(last.order + 1) if last else 0)
+        else:
+            instance = serializer.save()
+        log_action(self.request.user, AuditLog.Action.CREATE, instance)
+
+    def perform_update(self, serializer):
+        instance = serializer.save()
+        log_action(self.request.user, AuditLog.Action.UPDATE, instance)
+
+    def perform_destroy(self, instance):
+        log_action(self.request.user, AuditLog.Action.DELETE, instance)
+        instance.delete()
+
+    @action(detail=False, methods=["post"])
+    def reorder(self, request):
+        for item in request.data.get("sponsors", []):
+            Sponsor.objects.filter(pk=item.get("id")).update(
+                order=item.get("order", 0)
+            )
+        return Response({"detail": "ok"})
 
 
 class AuditLogViewSet(viewsets.ReadOnlyModelViewSet):
@@ -119,61 +169,134 @@ class DashboardView(APIView):
         now = timezone.now()
         today = now.date()
         config = SiteConfig.load()
+        week_ago = now - timedelta(days=7)
+        day_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
 
-        upcoming = [
-            e for e in Event.objects.filter(
-                status=Event.Status.PUBLICADO, date__gte=today
-            )
-        ]
+        upcoming_qs = Event.objects.filter(
+            status=Event.Status.PUBLICADO, date__gte=today
+        ).order_by("date", "time")
+        upcoming_list = list(upcoming_qs[:8])
+        upcoming_count = upcoming_qs.count()
+
         realized = Event.objects.filter(status=Event.Status.REALIZADO).count()
+        draft = Event.objects.filter(status=Event.Status.RASCUNHO).count()
+        published = Event.objects.filter(status=Event.Status.PUBLICADO).count()
+        total_events = Event.objects.count()
 
-        lost_cols = KanbanColumn.objects.filter(is_lost=True).values_list("id", flat=True)
-        won_cols = KanbanColumn.objects.filter(is_won=True).values_list("id", flat=True)
+        lost_cols = list(
+            KanbanColumn.objects.filter(is_lost=True).values_list("id", flat=True)
+        )
+        won_cols = list(
+            KanbanColumn.objects.filter(is_won=True).values_list("id", flat=True)
+        )
         total_cards = Card.objects.count()
-        won = Card.objects.filter(column__in=won_cols).count()
-        lost = Card.objects.filter(column__in=lost_cols).count()
-        in_progress = Card.objects.exclude(column__in=list(won_cols) + list(lost_cols)).count()
-        conversion = round((won / total_cards) * 100, 1) if total_cards else 0
+        won = Card.objects.filter(column_id__in=won_cols).count()
+        lost = Card.objects.filter(column_id__in=lost_cols).count()
+        in_progress = Card.objects.exclude(
+            column_id__in=won_cols + lost_cols
+        ).count()
+        conversion = round((won / total_cards) * 100, 1) if total_cards else 0.0
 
         events_by_month = {}
         for e in Event.objects.all():
             key = e.date.strftime("%Y-%m")
             events_by_month[key] = events_by_month.get(key, 0) + 1
+
+        # Últimos 6 meses no gráfico (mesmo zerados) + meses extras com shows
+        series_keys = []
+        y, m = today.year, today.month
+        for _ in range(6):
+            series_keys.append(f"{y:04d}-{m:02d}")
+            m -= 1
+            if m == 0:
+                m = 12
+                y -= 1
+        series_keys.reverse()
+        known = set(series_keys)
         events_series = [
-            {"month": k, "count": v} for k, v in sorted(events_by_month.items())
+            {"month": k, "count": events_by_month.get(k, 0)} for k in series_keys
         ]
+        for k, v in sorted(events_by_month.items()):
+            if k not in known:
+                events_series.append({"month": k, "count": v})
+        events_series = sorted(events_series, key=lambda x: x["month"])[-8:]
 
         leads_by_status = [
             {"status": c.title, "count": c.cards.count(), "color": c.color}
-            for c in KanbanColumn.objects.all()
+            for c in KanbanColumn.objects.order_by("order")
         ]
 
         top_cities = list(
             Event.objects.values("city")
             .annotate(count=Count("id"))
-            .order_by("-count")[:5]
+            .order_by("-count")[:6]
         )
 
-        demo_active = Lead.objects.filter(is_demo=True).exists() or config.demo_data_active
+        leads_total = Lead.objects.count()
+        leads_last_30d = Lead.objects.filter(
+            created_at__gte=now - timedelta(days=30)
+        ).count()
+        leads_week = Lead.objects.filter(created_at__gte=week_ago).count()
+        leads_today = Lead.objects.filter(created_at__gte=day_start).count()
 
-        return Response({
-            "cards": {
-                "upcoming_events": len(upcoming),
-                "realized_events": realized,
-                "leads_total": Lead.objects.count(),
-                "leads_last_30d": Lead.objects.filter(
-                    created_at__gte=now - timedelta(days=30)
-                ).count(),
-                "in_progress": in_progress,
-                "won": won,
-                "lost": lost,
-                "conversion_rate": conversion,
-            },
-            "events_series": events_series,
-            "leads_by_status": leads_by_status,
-            "top_cities": top_cities,
-            "demo_data_active": demo_active,
-        })
+        recent_leads = [
+            {
+                "id": lead.id,
+                "name": lead.name,
+                "email": lead.email or "",
+                "area": lead.area_display or "",
+                "category": lead.get_category_display() or lead.category or "",
+                "created_at": lead.created_at.isoformat(),
+            }
+            for lead in Lead.objects.order_by("-created_at")[:6]
+        ]
+
+        next_events = [
+            {
+                "id": e.id,
+                "name": e.name,
+                "slug": e.slug,
+                "date": e.date.isoformat(),
+                "time": e.time.strftime("%H:%M") if e.time else None,
+                "city": e.city,
+                "state": e.state,
+                "venue": e.venue or "",
+                "status": e.status,
+            }
+            for e in upcoming_list
+        ]
+
+        demo_active = (
+            Lead.objects.filter(is_demo=True).exists() or config.demo_data_active
+        )
+
+        return Response(
+            {
+                "site_title": config.hero_title or "Rafael Aragão",
+                "cards": {
+                    "upcoming_events": upcoming_count,
+                    "realized_events": realized,
+                    "events_total": total_events,
+                    "events_draft": draft,
+                    "events_published": published,
+                    "leads_total": leads_total,
+                    "leads_last_30d": leads_last_30d,
+                    "leads_week": leads_week,
+                    "leads_today": leads_today,
+                    "in_progress": in_progress,
+                    "won": won,
+                    "lost": lost,
+                    "conversion_rate": conversion,
+                    "pipeline_total": total_cards,
+                },
+                "next_events": next_events,
+                "recent_leads": recent_leads,
+                "events_series": events_series,
+                "leads_by_status": leads_by_status,
+                "top_cities": top_cities,
+                "demo_data_active": demo_active,
+            }
+        )
 
 
 class TimelineView(APIView):

@@ -13,13 +13,19 @@ function diff(target: Date) {
   };
 }
 
-export default function Countdown({ target }: { target: string }) {
+export default function Countdown({
+  target,
+  size = "md",
+}: {
+  target: string;
+  size?: "md" | "lg";
+}) {
   const [t, setT] = useState<ReturnType<typeof diff> | null>(null);
+  const large = size === "lg";
 
   useEffect(() => {
     const date = new Date(target);
     const id = setInterval(() => setT(diff(date)), 1000);
-    // Defer first paint to the interval tick to avoid sync setState-in-effect.
     const boot = setTimeout(() => setT(diff(date)), 0);
     return () => {
       clearInterval(id);
@@ -35,16 +41,33 @@ export default function Countdown({ target }: { target: string }) {
   ];
 
   return (
-    <div className="flex gap-2" suppressHydrationWarning>
+    <div
+      className={`flex ${large ? "gap-2 sm:gap-3" : "gap-1.5 sm:gap-2"}`}
+      suppressHydrationWarning
+    >
       {cells.map((c) => (
         <div
           key={c.l}
-          className="flex min-w-[52px] flex-col items-center rounded-lg bg-white/5 px-2 py-1.5 backdrop-blur"
+          className={`flex flex-col items-center rounded-xl border border-white/10 bg-black/35 backdrop-blur-sm ${
+            large
+              ? "min-w-[3.5rem] px-2.5 py-2.5 sm:min-w-[4.5rem] sm:rounded-2xl sm:px-3.5 sm:py-3"
+              : "min-w-[48px] px-2 py-1.5 sm:min-w-[54px]"
+          }`}
         >
-          <span className="font-display text-lg font-bold text-gold tabular-nums">
+          <span
+            className={`font-display font-bold tabular-nums text-gold ${
+              large
+                ? "text-xl sm:text-2xl md:text-3xl"
+                : "text-base sm:text-lg"
+            }`}
+          >
             {t ? String(c.v).padStart(2, "0") : "--"}
           </span>
-          <span className="text-[10px] uppercase tracking-wide text-white/50">
+          <span
+            className={`uppercase tracking-wider text-white/45 ${
+              large ? "text-[9px] sm:text-[10px]" : "text-[9px]"
+            }`}
+          >
             {c.l}
           </span>
         </div>

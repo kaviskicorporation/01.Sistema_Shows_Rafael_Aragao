@@ -6,6 +6,7 @@ from .models import (
     CardChecklistItem,
     CardComment,
     CardHistory,
+    CardNote,
     KanbanColumn,
     Label,
     Lead,
@@ -106,6 +107,24 @@ class CardCommentSerializer(serializers.ModelSerializer):
         read_only_fields = ["author", "created_at"]
 
 
+class CardNoteSerializer(serializers.ModelSerializer):
+    author_name = serializers.CharField(source="author.username", read_only=True)
+
+    class Meta:
+        model = CardNote
+        fields = [
+            "id",
+            "card",
+            "author",
+            "author_name",
+            "text",
+            "pinned",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = ["author", "created_at", "updated_at"]
+
+
 class CardChecklistItemSerializer(serializers.ModelSerializer):
     class Meta:
         model = CardChecklistItem
@@ -113,10 +132,41 @@ class CardChecklistItemSerializer(serializers.ModelSerializer):
 
 
 class CardAttachmentSerializer(serializers.ModelSerializer):
+    file_url = serializers.SerializerMethodField()
+    uploaded_by_name = serializers.CharField(
+        source="uploaded_by.username", read_only=True, default=""
+    )
+
     class Meta:
         model = CardAttachment
-        fields = ["id", "card", "file", "name", "uploaded_at"]
-        read_only_fields = ["uploaded_at"]
+        fields = [
+            "id",
+            "card",
+            "file",
+            "file_url",
+            "name",
+            "uploaded_by",
+            "uploaded_by_name",
+            "uploaded_at",
+        ]
+        read_only_fields = ["uploaded_by", "uploaded_at", "file_url"]
+
+    def get_file_url(self, obj):
+        if not obj.file:
+            return ""
+        request = self.context.get("request")
+        url = obj.file.url
+        return request.build_absolute_uri(url) if request else url
+
+    def create(self, validated_data):
+        request = self.context.get("request")
+        if request and request.user and request.user.is_authenticated:
+            validated_data["uploaded_by"] = request.user
+        if not validated_data.get("name") and validated_data.get("file"):
+            validated_data["name"] = getattr(
+                validated_data["file"], "name", ""
+            )[:200]
+        return super().create(validated_data)
 
 
 class CardHistorySerializer(serializers.ModelSerializer):
@@ -130,6 +180,7 @@ class CardHistorySerializer(serializers.ModelSerializer):
 class CardSerializer(serializers.ModelSerializer):
     lead = LeadSerializer(read_only=True)
     comments = CardCommentSerializer(many=True, read_only=True)
+    notes = CardNoteSerializer(many=True, read_only=True)
     checklist = CardChecklistItemSerializer(many=True, read_only=True)
     attachments = CardAttachmentSerializer(many=True, read_only=True)
     history = CardHistorySerializer(many=True, read_only=True)
@@ -158,6 +209,7 @@ class CardSerializer(serializers.ModelSerializer):
             "color",
             "loss_reason",
             "comments",
+            "notes",
             "checklist",
             "attachments",
             "history",

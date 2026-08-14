@@ -32,6 +32,35 @@ class Event(models.Model):
     description = models.TextField(blank=True)
     banner = models.ImageField(upload_to="events/", blank=True, null=True)
     banner_url = models.URLField(blank=True)
+    # Fundo do card de detalhes na página do show
+    class CardBgPreset(models.TextChoices):
+        CHAIR = "chair", "Foto na cadeira (padrão)"
+        TEXTURE_SOFT = "texture_soft", "Textura suave"
+        TEXTURE_GRAIN = "texture_grain", "Textura grain"
+        TEXTURE_MESH = "texture_mesh", "Textura mesh"
+        TEXTURE_LINES = "texture_lines", "Linhas diagonais"
+        GRADIENT_GOLD = "gradient_gold", "Gradiente ouro"
+        GRADIENT_EMBER = "gradient_ember", "Gradiente brasa"
+        GRADIENT_NIGHT = "gradient_night", "Gradiente noite"
+        GRADIENT_FOREST = "gradient_forest", "Gradiente floresta"
+        GRADIENT_VIOLET = "gradient_violet", "Gradiente violeta"
+        SOLID = "solid", "Cor sólida"
+        CUSTOM_IMAGE = "custom_image", "Imagem personalizada"
+
+    card_bg_preset = models.CharField(
+        max_length=32,
+        choices=CardBgPreset.choices,
+        default=CardBgPreset.CHAIR,
+    )
+    card_bg_color = models.CharField(
+        max_length=20, blank=True, default="#121212",
+        help_text="Usado quando o preset é 'solid'.",
+    )
+    card_bg_image = models.ImageField(
+        upload_to="events/cards/", blank=True, null=True
+    )
+    card_bg_image_url = models.CharField(max_length=500, blank=True)
+
     status = models.CharField(
         max_length=20, choices=Status.choices, default=Status.RASCUNHO
     )

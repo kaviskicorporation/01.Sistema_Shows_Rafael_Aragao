@@ -5,11 +5,14 @@ import { usePathname } from "next/navigation";
 import { AuthProvider, useAuth } from "@/lib/auth";
 import Sidebar from "@/components/admin/Sidebar";
 import AdminAmbient from "@/components/admin/AdminAmbient";
+import PageTransition from "@/components/PageTransition";
+import { toneFromPath, toneStyle } from "@/lib/adminTones";
 
 function AdminShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { loading, user, logout } = useAuth();
   const isLogin = pathname === "/admin/login";
+  const tone = toneFromPath(pathname);
 
   useEffect(() => {
     if (!isLogin && !loading && !user) {
@@ -18,7 +21,7 @@ function AdminShell({ children }: { children: React.ReactNode }) {
     }
   }, [isLogin, loading, user]);
 
-  if (isLogin) return <>{children}</>;
+  if (isLogin) return <PageTransition>{children}</PageTransition>;
 
   if (loading) {
     return (
@@ -47,10 +50,17 @@ function AdminShell({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className="relative min-h-screen bg-ink text-white">
+    <div
+      className="relative min-h-screen bg-ink text-white"
+      style={toneStyle(tone.hex)}
+    >
       <AdminAmbient />
       <Sidebar />
-      <div className="relative z-10 lg:pl-64">{children}</div>
+      <div className="relative z-10 flex min-h-screen flex-col lg:pl-64">
+        <PageTransition className="flex min-h-0 flex-1 flex-col">
+          {children}
+        </PageTransition>
+      </div>
     </div>
   );
 }

@@ -1,22 +1,25 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   ArrowDown,
   ArrowUp,
   ClipboardList,
   Eye,
   EyeOff,
+  ImageIcon,
   Plus,
+  RotateCcw,
   Save,
   Trash2,
-  RotateCcw,
+  Upload,
 } from "lucide-react";
 import Topbar from "@/components/admin/Topbar";
 import AdminHero from "@/components/admin/AdminHero";
 import { api, ApiError } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import type { SiteConfig } from "@/lib/types";
+import { SITE_DEFAULTS } from "@/lib/siteDefaults";
 import {
   DEFAULT_CONTACT_FORM,
   SYSTEM_FIELD_KEYS,
@@ -27,16 +30,38 @@ import {
 } from "@/lib/contactForm";
 import ThemedSelect from "@/components/ui/ThemedSelect";
 
-type Tab = "fields" | "areas" | "categories";
+type Tab = "section" | "fields" | "areas" | "categories";
+
+type SectionForm = {
+  contact_eyebrow: string;
+  contact_title_line1: string;
+  contact_title_line2: string;
+  contact_scroll_hint: string;
+  contact_bg_image_url: string;
+  contact_bg_image_display: string;
+};
+
+const SECTION_DEFAULTS: SectionForm = {
+  contact_eyebrow: SITE_DEFAULTS.contact_eyebrow,
+  contact_title_line1: SITE_DEFAULTS.contact_title_line1,
+  contact_title_line2: SITE_DEFAULTS.contact_title_line2,
+  contact_scroll_hint: SITE_DEFAULTS.contact_scroll_hint,
+  contact_bg_image_url: SITE_DEFAULTS.contact_bg_image_url,
+  contact_bg_image_display: SITE_DEFAULTS.contact_bg_image_url,
+};
 
 export default function FormularioContatoPage() {
   const { can, canWrite } = useAuth();
   const writable = canWrite("config");
   const [cfg, setCfg] = useState<ContactFormConfig | null>(null);
-  const [tab, setTab] = useState<Tab>("fields");
+  const [section, setSection] = useState<SectionForm>(SECTION_DEFAULTS);
+  const [tab, setTab] = useState<Tab>("section");
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState("");
   const [err, setErr] = useState("");
+  const [pendingBg, setPendingBg] = useState<File | null>(null);
+  const [clearBg, setClearBg] = useState(false);
+  const [bgPreview, setBgPreview] = useState("");
 
   useEffect(() => {
     if (!can("config")) return;
@@ -47,9 +72,30 @@ export default function FormularioContatoPage() {
           (data.contact_form_config as ContactFormConfig) ||
             structuredClone(DEFAULT_CONTACT_FORM)
         );
+        setSection({
+          contact_eyebrow: data.contact_eyebrow || SECTION_DEFAULTS.contact_eyebrow,
+          contact_title_line1:
+            data.contact_title_line1 || SECTION_DEFAULTS.contact_title_line1,
+          contact_title_line2:
+            data.contact_title_line2 || SECTION_DEFAULTS.contact_title_line2,
+          contact_scroll_hint:
+            data.contact_scroll_hint || SECTION_DEFAULTS.contact_scroll_hint,
+          contact_bg_image_url:
+            data.contact_bg_image_url || SECTION_DEFAULTS.contact_bg_image_url,
+          contact_bg_image_display:
+            data.contact_bg_image_display ||
+            data.contact_bg_image_url ||
+            SECTION_DEFAULTS.contact_bg_image_url,
+        });
       })
       .catch(() => setCfg(structuredClone(DEFAULT_CONTACT_FORM)));
   }, [can]);
+
+  useEffect(() => {
+    return () => {
+      if (bgPreview.startsWith("blob:")) URL.revokeObjectURL(bgPreview);
+    };
+  }, [bgPreview]);
 
   if (!can("config")) {
     return (
@@ -69,19 +115,85 @@ export default function FormularioContatoPage() {
     );
   }
 
+  function previewBg(): string {
+    if (bgPreview) return bgPreview;
+    if (clearBg) return SECTION_DEFAULTS.contact_bg_image_url;
+    return (
+      section.contact_bg_image_display ||
+      section.contact_bg_image_url ||
+      SECTION_DEFAULTS.contact_bg_image_url
+    );
+  }
+
+  function onPickBg(file: File | null) {
+    setBgPreview((old) => {
+      if (old.startsWith("blob:")) URL.revokeObjectURL(old);
+      return file ? URL.createObjectURL(file) : "";
+    });
+    setPendingBg(file);
+    setClearBg(false);
+  }
+
+  function resetBg() {
+    setPendingBg(null);
+    setClearBg(true);
+    setBgPreview((old) => {
+      if (old.startsWith("blob:")) URL.revokeObjectURL(old);
+      return SECTION_DEFAULTS.contact_bg_image_url;
+    });
+    setSection((s) => ({
+      ...s,
+      contact_bg_image_url: SECTION_DEFAULTS.contact_bg_image_url,
+      contact_bg_image_display: SECTION_DEFAULTS.contact_bg_image_url,
+    }));
+  }
+
   async function save() {
     setSaving(true);
     setMsg("");
     setErr("");
     try {
-      const updated = await api.put<SiteConfig>("/site-config/", {
-        contact_form_config: cfg,
-      });
+      const fd = new FormData();
+      fd.append("contact_form_config", JSON.stringify(cfg));
+      fd.append("contact_eyebrow", section.contact_eyebrow || "");
+      fd.append("contact_title_line1", section.contact_title_line1 || "");
+      fd.append("contact_title_line2", section.contact_title_line2 || "");
+      fd.append("contact_scroll_hint", section.contact_scroll_hint || "");
+      fd.append(
+        "contact_bg_image_url",
+        section.contact_bg_image_url || SECTION_DEFAULTS.contact_bg_image_url
+      );
+      if (clearBg) fd.append("clear_contact_bg_image", "true");
+      if (pendingBg) fd.append("contact_bg_image", pendingBg);
+
+      const updated = await api.put<SiteConfig>("/site-config/", fd);
       setCfg(
         (updated.contact_form_config as ContactFormConfig) ||
           structuredClone(DEFAULT_CONTACT_FORM)
       );
-      setMsg("Formulário salvo. As mudanças já valem no site.");
+      setSection({
+        contact_eyebrow:
+          updated.contact_eyebrow || SECTION_DEFAULTS.contact_eyebrow,
+        contact_title_line1:
+          updated.contact_title_line1 || SECTION_DEFAULTS.contact_title_line1,
+        contact_title_line2:
+          updated.contact_title_line2 || SECTION_DEFAULTS.contact_title_line2,
+        contact_scroll_hint:
+          updated.contact_scroll_hint || SECTION_DEFAULTS.contact_scroll_hint,
+        contact_bg_image_url:
+          updated.contact_bg_image_url || SECTION_DEFAULTS.contact_bg_image_url,
+        contact_bg_image_display:
+          updated.contact_bg_image_display ||
+          updated.contact_bg_image_url ||
+          SECTION_DEFAULTS.contact_bg_image_url,
+      });
+      setPendingBg(null);
+      setClearBg(false);
+      setBgPreview((old) => {
+        if (old.startsWith("blob:")) URL.revokeObjectURL(old);
+        return "";
+      });
+      setMsg("Salvo. Textos, foto e formulário já valem no site.");
     } catch (e) {
       setErr(
         e instanceof ApiError ? e.message || "Erro ao salvar." : "Erro ao salvar."
@@ -93,6 +205,8 @@ export default function FormularioContatoPage() {
 
   function resetAll() {
     setCfg(structuredClone(DEFAULT_CONTACT_FORM));
+    setSection({ ...SECTION_DEFAULTS });
+    resetBg();
   }
 
   function moveField(index: number, dir: -1 | 1) {
@@ -121,7 +235,6 @@ export default function FormularioContatoPage() {
       if (!c) return c;
       const field = c.fields[index];
       if (SYSTEM_FIELD_KEYS.has(field.key)) {
-        // Campos do sistema: só desliga, não apaga (mantém lead intacto)
         return {
           ...c,
           fields: c.fields.map((f, i) =>
@@ -167,16 +280,17 @@ export default function FormularioContatoPage() {
         <AdminHero
           icon={ClipboardList}
           title="Formulário de contratação"
-          subtitle="Edite campos, áreas de atuação e tipos de evento do formulário público."
+          subtitle="Textos da seção, foto de fundo, campos, áreas e tipos de evento."
         />
 
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="inline-flex rounded-full border border-white/10 bg-ink/60 p-1">
+          <div className="inline-flex flex-wrap rounded-full border border-white/10 bg-ink/60 p-1">
             {(
               [
+                ["section", "Seção"],
                 ["fields", "Campos"],
-                ["areas", "Áreas de atuação"],
-                ["categories", "Tipos de evento"],
+                ["areas", "Áreas"],
+                ["categories", "Tipos"],
               ] as const
             ).map(([id, label]) => (
               <button
@@ -185,8 +299,8 @@ export default function FormularioContatoPage() {
                 onClick={() => setTab(id)}
                 className={`rounded-full px-3.5 py-1.5 text-xs font-semibold transition ${
                   tab === id
-                    ? "bg-gold text-ink"
-                    : "text-white/55 hover:text-gold"
+                    ? "admin-tone-btn"
+                    : "text-white/55 hover:text-[var(--admin-tone)]"
                 }`}
               >
                 {label}
@@ -227,8 +341,63 @@ export default function FormularioContatoPage() {
           </p>
         )}
 
+        {tab === "section" && (
+          <section className="space-y-4 admin-glass p-5">
+            <h2 className="font-display text-lg font-bold text-gold">
+              Textos e fundo da seção
+            </h2>
+            <p className="text-xs text-white/40">
+              Aparecem na home, acima do formulário (Contratação / Faça seu
+              evento…).
+            </p>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <FieldInput
+                label="Rótulo (ex.: Contratação)"
+                value={section.contact_eyebrow}
+                disabled={!writable}
+                onChange={(v) =>
+                  setSection((s) => ({ ...s, contact_eyebrow: v }))
+                }
+              />
+              <FieldInput
+                label="Dica de scroll"
+                value={section.contact_scroll_hint}
+                disabled={!writable}
+                onChange={(v) =>
+                  setSection((s) => ({ ...s, contact_scroll_hint: v }))
+                }
+              />
+              <FieldInput
+                label="Título — linha 1"
+                value={section.contact_title_line1}
+                disabled={!writable}
+                onChange={(v) =>
+                  setSection((s) => ({ ...s, contact_title_line1: v }))
+                }
+              />
+              <FieldInput
+                label="Título — linha 2 (destaque)"
+                value={section.contact_title_line2}
+                disabled={!writable}
+                onChange={(v) =>
+                  setSection((s) => ({ ...s, contact_title_line2: v }))
+                }
+              />
+            </div>
+
+            <BgImageField
+              label="Foto de fundo da seção"
+              preview={previewBg()}
+              disabled={!writable}
+              onFile={onPickBg}
+              onReset={resetBg}
+            />
+          </section>
+        )}
+
         {tab === "fields" && (
-          <section className="space-y-3 rounded-2xl border border-white/10 bg-ink-card p-5">
+          <section className="space-y-3 admin-glass p-5">
             <label className="block">
               <span className="mb-1 block text-xs text-white/50">
                 Texto do botão enviar
@@ -440,6 +609,82 @@ export default function FormularioContatoPage() {
   );
 }
 
+function BgImageField({
+  label,
+  preview,
+  disabled,
+  onFile,
+  onReset,
+}: {
+  label: string;
+  preview: string;
+  disabled?: boolean;
+  onFile: (file: File | null) => void;
+  onReset: () => void;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  return (
+    <div className="group relative overflow-hidden rounded-2xl border border-white/10 bg-ink">
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/png,image/jpeg,image/webp,image/gif"
+        className="hidden"
+        disabled={disabled}
+        onChange={(e) => {
+          const file = e.target.files?.[0] || null;
+          onFile(file);
+          e.target.value = "";
+        }}
+      />
+      <div className="relative aspect-[16/9] w-full bg-black/50">
+        {preview ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={preview}
+            alt={label}
+            className="h-full w-full object-contain object-center p-4 opacity-90"
+          />
+        ) : (
+          <div className="flex h-full flex-col items-center justify-center gap-2 text-white/30">
+            <ImageIcon size={22} />
+            <span className="text-xs">Sem imagem</span>
+          </div>
+        )}
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
+      </div>
+      <div className="absolute inset-x-0 bottom-0 flex items-end justify-between gap-3 p-3 sm:p-4">
+        <div className="min-w-0">
+          <p className="truncate text-sm font-semibold text-white">{label}</p>
+          <p className="text-[11px] text-white/45">PNG, JPG ou WebP</p>
+        </div>
+        <div className="flex shrink-0 items-center gap-1.5">
+          <button
+            type="button"
+            onClick={onReset}
+            disabled={disabled}
+            title="Voltar ao padrão"
+            className="inline-flex h-9 items-center gap-1.5 rounded-full border border-white/15 bg-black/50 px-3 text-[11px] font-medium text-white/70 backdrop-blur-md transition hover:border-gold/50 hover:text-gold disabled:opacity-40"
+          >
+            <RotateCcw size={12} />
+            <span className="hidden sm:inline">Padrão</span>
+          </button>
+          <button
+            type="button"
+            disabled={disabled}
+            onClick={() => inputRef.current?.click()}
+            className="inline-flex h-9 items-center gap-1.5 rounded-full bg-gold px-3.5 text-[11px] font-bold text-ink transition hover:brightness-110 disabled:opacity-40"
+          >
+            <Upload size={13} />
+            Trocar
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function OptionsEditor({
   title,
   items,
@@ -460,7 +705,7 @@ function OptionsEditor({
   }
 
   return (
-    <section className="space-y-3 rounded-2xl border border-white/10 bg-ink-card p-5">
+    <section className="space-y-3 admin-glass p-5">
       <h2 className="font-display text-lg font-bold text-gold">{title}</h2>
       <div className="space-y-2">
         {items.map((item, i) => (

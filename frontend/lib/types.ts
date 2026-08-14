@@ -52,6 +52,11 @@ export interface EventItem {
   banner: string | null;
   banner_url: string;
   banner_display: string;
+  card_bg_preset: string;
+  card_bg_color: string;
+  card_bg_image: string | null;
+  card_bg_image_url: string;
+  card_bg_image_display?: string;
   status: EventStatus;
   status_display: string;
   internal_notes: string;
@@ -77,7 +82,22 @@ export interface PublicEvent {
   external_link: string;
   description: string;
   banner_display: string;
+  card_bg_preset?: string;
+  card_bg_color?: string;
+  card_bg_image_display?: string;
   gallery: EventImage[];
+}
+
+export interface Sponsor {
+  id: number;
+  name: string;
+  text_mark: string;
+  image: string | null;
+  image_url: string;
+  image_display?: string;
+  link: string;
+  order: number;
+  is_active: boolean;
 }
 
 export interface Lead {
@@ -118,6 +138,17 @@ export interface CardComment {
   created_at: string;
 }
 
+export interface CardNote {
+  id: number;
+  card: number;
+  author: number | null;
+  author_name: string;
+  text: string;
+  pinned?: boolean;
+  created_at: string;
+  updated_at?: string;
+}
+
 export interface ChecklistItem {
   id: number;
   card: number;
@@ -137,7 +168,10 @@ export interface CardAttachment {
   id: number;
   card: number;
   file: string;
+  file_url?: string;
   name: string;
+  uploaded_by?: number | null;
+  uploaded_by_name?: string;
   uploaded_at: string;
 }
 
@@ -154,6 +188,7 @@ export interface CardItem {
   color: string;
   loss_reason: string;
   comments: CardComment[];
+  notes: CardNote[];
   checklist: ChecklistItem[];
   attachments: CardAttachment[];
   history: CardHistory[];
@@ -163,10 +198,33 @@ export interface CardItem {
 
 export interface SiteConfig {
   hero_title: string;
+  hero_subtitle_lead?: string;
   hero_subtitle: string;
   hero_image: string | null;
   hero_image_url: string;
   hero_image_display?: string;
+  hero_wordmark?: string;
+  hero_badge?: string;
+  hero_cta_primary?: string;
+  hero_cta_secondary?: string;
+  hero_cta_icon_primary?: string;
+  hero_cta_icon_secondary?: string;
+  hero_next_label?: string;
+  hero_scroll_label?: string;
+  nav_cta?: string;
+  nav_icon_cta?: string;
+  nav_label_agenda?: string;
+  nav_icon_agenda?: string;
+  nav_label_sobre?: string;
+  nav_icon_sobre?: string;
+  nav_label_video?: string;
+  nav_icon_video?: string;
+  nav_label_contato?: string;
+  nav_icon_contato?: string;
+  hero_tag_1?: string;
+  hero_tag_2?: string;
+  hero_tag_3?: string;
+  hero_tag_4?: string;
   primary_color: string;
   secondary_color: string;
   about_title: string;
@@ -190,21 +248,62 @@ export interface SiteConfig {
   hide_rule: string;
   hide_days_after: number;
   agenda_default_view?: "calendar" | "list";
+  agenda_list_page_size?: number;
   featured_video_url?: string;
+  sponsors_title?: string;
+  sponsors?: Sponsor[];
+  contact_eyebrow?: string;
+  contact_title_line1?: string;
+  contact_title_line2?: string;
+  contact_scroll_hint?: string;
+  contact_bg_image?: string | null;
+  contact_bg_image_url?: string;
+  contact_bg_image_display?: string;
   contact_form_config?: import("@/lib/contactForm").ContactFormConfig;
 }
 
+export interface DashboardNextEvent {
+  id: number;
+  name: string;
+  slug: string;
+  date: string;
+  time: string | null;
+  city: string;
+  state: string;
+  venue: string;
+  status: string;
+}
+
+export interface DashboardRecentLead {
+  id: number;
+  name: string;
+  email: string;
+  area?: string;
+  category?: string;
+  city?: string;
+  created_at: string;
+}
+
 export interface DashboardData {
+  site_title?: string;
   cards: {
     upcoming_events: number;
     realized_events: number;
+    events_total?: number;
+    events_draft?: number;
+    events_published?: number;
     leads_total: number;
     leads_last_30d: number;
+    leads_week?: number;
+    leads_today?: number;
     in_progress: number;
     won: number;
     lost: number;
     conversion_rate: number;
+    pipeline_total?: number;
   };
+  next_events?: DashboardNextEvent[];
+  recent_leads?: DashboardRecentLead[];
   events_series: { month: string; count: number }[];
   leads_by_status: { status: string; count: number; color: string }[];
   top_cities: { city: string; count: number }[];

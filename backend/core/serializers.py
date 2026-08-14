@@ -1,7 +1,44 @@
 from rest_framework import serializers
 
 from .contact_form import default_contact_form_config, normalize_contact_form_config
-from .models import AuditLog, Notification, SiteConfig
+from .models import AuditLog, Notification, SiteConfig, Sponsor
+
+
+class SponsorSerializer(serializers.ModelSerializer):
+    image_display = serializers.SerializerMethodField()
+    clear_image = serializers.BooleanField(write_only=True, required=False)
+
+    class Meta:
+        model = Sponsor
+        fields = [
+            "id",
+            "name",
+            "text_mark",
+            "image",
+            "image_url",
+            "image_display",
+            "link",
+            "order",
+            "is_active",
+            "clear_image",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = ["id", "image_display", "created_at", "updated_at"]
+
+    def get_image_display(self, obj):
+        if obj.image:
+            request = self.context.get("request")
+            url = obj.image.url
+            return request.build_absolute_uri(url) if request else url
+        return obj.image_url or ""
+
+    def update(self, instance, validated_data):
+        if validated_data.pop("clear_image", False):
+            if instance.image:
+                instance.image.delete(save=False)
+            instance.image = None
+        return super().update(instance, validated_data)
 
 
 class SiteConfigSerializer(serializers.ModelSerializer):
@@ -10,20 +47,48 @@ class SiteConfigSerializer(serializers.ModelSerializer):
     hero_image_display = serializers.SerializerMethodField()
     about_image_display = serializers.SerializerMethodField()
     og_image_display = serializers.SerializerMethodField()
+    contact_bg_image_display = serializers.SerializerMethodField()
+    sponsors = serializers.SerializerMethodField()
     contact_form_config = serializers.JSONField(required=False)
     clear_hero_image = serializers.BooleanField(write_only=True, required=False)
     clear_about_image = serializers.BooleanField(write_only=True, required=False)
     clear_og_image = serializers.BooleanField(write_only=True, required=False)
+    clear_contact_bg_image = serializers.BooleanField(
+        write_only=True, required=False
+    )
 
     class Meta:
         model = SiteConfig
         fields = [
             "id",
             "hero_title",
+            "hero_subtitle_lead",
             "hero_subtitle",
             "hero_image",
             "hero_image_url",
             "hero_image_display",
+            "hero_wordmark",
+            "hero_badge",
+            "hero_cta_primary",
+            "hero_cta_secondary",
+            "hero_cta_icon_primary",
+            "hero_cta_icon_secondary",
+            "hero_next_label",
+            "hero_scroll_label",
+            "nav_cta",
+            "nav_icon_cta",
+            "nav_label_agenda",
+            "nav_icon_agenda",
+            "nav_label_sobre",
+            "nav_icon_sobre",
+            "nav_label_video",
+            "nav_icon_video",
+            "nav_label_contato",
+            "nav_icon_contato",
+            "hero_tag_1",
+            "hero_tag_2",
+            "hero_tag_3",
+            "hero_tag_4",
             "primary_color",
             "secondary_color",
             "about_title",
@@ -47,11 +112,22 @@ class SiteConfigSerializer(serializers.ModelSerializer):
             "clear_hero_image",
             "clear_about_image",
             "clear_og_image",
+            "clear_contact_bg_image",
             "hide_rule",
             "hide_days_after",
             "agenda_default_view",
+            "agenda_list_page_size",
             "contact_form_config",
+            "contact_eyebrow",
+            "contact_title_line1",
+            "contact_title_line2",
+            "contact_scroll_hint",
+            "contact_bg_image",
+            "contact_bg_image_url",
+            "contact_bg_image_display",
             "featured_video_url",
+            "sponsors_title",
+            "sponsors",
             "demo_data_active",
             "updated_at",
         ]
@@ -60,6 +136,8 @@ class SiteConfigSerializer(serializers.ModelSerializer):
             "hero_image_display",
             "about_image_display",
             "og_image_display",
+            "contact_bg_image_display",
+            "sponsors",
             "demo_data_active",
             "updated_at",
         ]
@@ -79,6 +157,17 @@ class SiteConfigSerializer(serializers.ModelSerializer):
 
     def get_og_image_display(self, obj):
         return self._abs(obj.og_image) or obj.og_image_url or ""
+
+    def get_contact_bg_image_display(self, obj):
+        return (
+            self._abs(obj.contact_bg_image)
+            or obj.contact_bg_image_url
+            or "/images/rei-dos-peao.png"
+        )
+
+    def get_sponsors(self, obj):
+        qs = Sponsor.objects.filter(is_active=True).order_by("order", "id")
+        return SponsorSerializer(qs, many=True, context=self.context).data
 
     def to_representation(self, instance):
         data = super().to_representation(instance)
@@ -120,6 +209,9 @@ class SiteConfigSerializer(serializers.ModelSerializer):
             "hero_image": validated_data.pop("clear_hero_image", False),
             "about_image": validated_data.pop("clear_about_image", False),
             "og_image": validated_data.pop("clear_og_image", False),
+            "contact_bg_image": validated_data.pop(
+                "clear_contact_bg_image", False
+            ),
         }
         for field, should_clear in clears.items():
             if should_clear:

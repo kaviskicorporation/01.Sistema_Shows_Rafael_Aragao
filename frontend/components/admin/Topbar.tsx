@@ -68,8 +68,12 @@ export default function Topbar({ title }: { title: string }) {
   }
 
   return (
-    <header className="sticky top-0 z-20 flex items-center justify-between gap-4 border-b border-white/10 bg-ink/80 px-6 py-4 backdrop-blur">
-      <h1 className="ml-10 font-display text-xl font-bold text-white lg:ml-0">
+    <header className="relative sticky top-0 z-20 flex items-center justify-between gap-4 border-b border-white/10 bg-ink/70 px-6 py-4 shadow-[0_12px_40px_-28px_rgba(0,0,0,0.7)] backdrop-blur-xl">
+      <div
+        className="admin-tone-line pointer-events-none absolute inset-x-0 bottom-0 h-px"
+        aria-hidden
+      />
+      <h1 className="relative ml-10 font-display text-xl font-bold text-white lg:ml-0">
         {title}
       </h1>
 
@@ -83,7 +87,7 @@ export default function Topbar({ title }: { title: string }) {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Busca global..."
-            className="w-56 rounded-full border border-white/10 bg-ink-card py-2 pl-9 pr-4 text-sm text-white outline-none focus:border-gold lg:w-72"
+            className="w-56 rounded-full border border-white/10 bg-ink-card py-2 pl-9 pr-4 text-sm text-white outline-none focus:border-[var(--admin-tone,var(--theme-primary))] lg:w-72"
           />
           {results && (
             <div className="absolute right-0 top-full z-30 mt-2 w-80 rounded-xl border border-white/10 bg-ink-card p-2 shadow-2xl">
@@ -117,7 +121,7 @@ export default function Topbar({ title }: { title: string }) {
         <div className="relative">
           <button
             onClick={openBell}
-            className="relative rounded-full border border-white/10 bg-ink-card p-2 text-white/70 hover:text-gold"
+            className="relative rounded-full border border-white/10 bg-ink-card p-2 text-white/70 hover:text-[var(--admin-tone,var(--theme-primary))]"
             aria-label="Notificações"
           >
             <Bell size={18} />

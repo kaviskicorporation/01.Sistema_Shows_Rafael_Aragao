@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, Fragment } from "react";
 import {
   Plus,
   Copy,
@@ -17,9 +17,14 @@ import Topbar from "@/components/admin/Topbar";
 import AdminHero from "@/components/admin/AdminHero";
 import { api, resultsOf } from "@/lib/api";
 import type { EventItem, EventStatus } from "@/lib/types";
-import { dayOf, formatFullDate, formatTime, monthShort, MONTHS_PT } from "@/lib/format";
+import { dayOf, formatFullDate, formatTime, groupByMonth, monthShort, MONTHS_PT } from "@/lib/format";
 import { useAuth } from "@/lib/auth";
 import ThemedSelect from "@/components/ui/ThemedSelect";
+import {
+  CARD_BG_OPTIONS,
+  type CardBgPreset,
+  presetSwatchStyle,
+} from "@/lib/eventCardBg";
 
 const STATUSES: { value: EventStatus | ""; label: string }[] = [
   { value: "", label: "Todos os status" },
@@ -41,6 +46,9 @@ const EMPTY_FORM = {
   external_link: "",
   description: "",
   banner_url: "",
+  card_bg_preset: "chair" as CardBgPreset,
+  card_bg_color: "#121212",
+  card_bg_image_url: "",
   status: "rascunho" as EventStatus,
   internal_notes: "",
   hide_override: "global",
@@ -100,6 +108,9 @@ export default function EventosPage() {
       external_link: e.external_link,
       description: e.description,
       banner_url: e.banner_url,
+      card_bg_preset: (e.card_bg_preset || "chair") as CardBgPreset,
+      card_bg_color: e.card_bg_color || "#121212",
+      card_bg_image_url: e.card_bg_image_url || "",
       status: e.status,
       internal_notes: e.internal_notes,
       hide_override: e.hide_override,
@@ -168,6 +179,10 @@ export default function EventosPage() {
     return days;
   }, [calMonth, events]);
 
+  const eventsByMonth = useMemo(() => groupByMonth(events), [events]);
+
+  const colSpan = writable ? 6 : 5;
+
   return (
     <>
       <Topbar title="Eventos" />
@@ -197,7 +212,7 @@ export default function EventosPage() {
             writable ? (
               <button
                 onClick={openCreate}
-                className="inline-flex items-center gap-2 rounded-full bg-gold px-4 py-2.5 text-sm font-semibold text-ink shadow-[0_0_24px_-6px_color-mix(in_srgb,var(--theme-primary)_55%,transparent)] transition hover:scale-[1.02]"
+                className="inline-flex items-center gap-2 rounded-full admin-tone-btn px-4 py-2.5 text-sm font-semibold shadow-[0_0_24px_-6px_color-mix(in_srgb,var(--admin-tone)_55%,transparent)] transition hover:scale-[1.02]"
               >
                 <Plus size={16} /> Novo evento
               </button>
@@ -206,7 +221,7 @@ export default function EventosPage() {
         />
 
         {/* Toolbar */}
-        <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-white/10 bg-ink-card/40 p-3">
+        <div className="flex flex-wrap items-center gap-3 admin-glass p-3">
           <div className="relative">
             <Search
               size={14}
@@ -302,7 +317,7 @@ export default function EventosPage() {
         )}
 
         {view === "list" ? (
-          <div className="overflow-hidden rounded-2xl border border-white/10">
+          <div className="overflow-hidden admin-glass">
             <table className="w-full text-left text-sm">
               <thead className="bg-ink-soft text-white/50">
                 <tr>
@@ -315,75 +330,128 @@ export default function EventosPage() {
                 </tr>
               </thead>
               <tbody>
-                {events.map((e) => (
-                  <tr
-                    key={e.id}
-                    className="border-t border-white/5 hover:bg-white/[0.03]"
-                  >
-                    {writable && (
-                      <td className="px-3 py-3">
-                        <input
-                          type="checkbox"
-                          checked={selected.includes(e.id)}
-                          onChange={() => toggle(e.id)}
-                        />
-                      </td>
-                    )}
-                    <td className="px-3 py-3 whitespace-nowrap">
-                      <span className="font-semibold text-gold">
-                        {dayOf(e.date)} {monthShort(e.date)}
-                      </span>
-                      {e.time && (
-                        <span className="ml-2 text-white/40">
-                          {formatTime(e.time)}
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-3 py-3">
-                      <button
-                        onClick={() => openEdit(e)}
-                        className="font-medium hover:text-gold"
-                      >
-                        {e.name}
-                      </button>
-                      {e.venue && (
-                        <p className="text-xs text-white/40">{e.venue}</p>
-                      )}
-                    </td>
-                    <td className="px-3 py-3">
-                      {e.city}/{e.state}
-                    </td>
-                    <td className="px-3 py-3">
-                      <StatusBadge status={e.status} label={e.status_display} />
-                    </td>
-                    <td className="px-3 py-3">
-                      <div className="flex justify-end gap-1">
+                {eventsByMonth.map((group) => {
+                  const groupIds = group.items.map((e) => e.id);
+                  const allSelected =
+                    groupIds.length > 0 &&
+                    groupIds.every((id) => selected.includes(id));
+                  const someSelected =
+                    !allSelected &&
+                    groupIds.some((id) => selected.includes(id));
+
+                  return (
+                    <Fragment key={group.key}>
+                      <tr className="border-t border-white/10 bg-ink-soft/80">
                         {writable && (
-                          <>
-                            <button
-                              onClick={() => duplicate(e)}
-                              title="Duplicar"
-                              className="rounded p-1.5 text-white/40 hover:bg-white/5 hover:text-gold"
-                            >
-                              <Copy size={15} />
-                            </button>
-                            <button
-                              onClick={() => remove(e)}
-                              title="Excluir"
-                              className="rounded p-1.5 text-white/40 hover:bg-white/5 hover:text-red-400"
-                            >
-                              <Trash2 size={15} />
-                            </button>
-                          </>
+                          <td className="px-3 py-2.5">
+                            <input
+                              type="checkbox"
+                              checked={allSelected}
+                              ref={(el) => {
+                                if (el) el.indeterminate = someSelected;
+                              }}
+                              onChange={() => {
+                                setSelected((prev) => {
+                                  if (allSelected) {
+                                    return prev.filter(
+                                      (id) => !groupIds.includes(id)
+                                    );
+                                  }
+                                  const set = new Set([...prev, ...groupIds]);
+                                  return Array.from(set);
+                                });
+                              }}
+                              title={`Selecionar ${group.label}`}
+                            />
+                          </td>
                         )}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                        <td colSpan={5} className="px-3 py-2.5">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="font-display text-sm font-bold text-gold">
+                              {group.label}
+                            </span>
+                            <span className="rounded-full bg-white/8 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white/45">
+                              {group.items.length} show
+                              {group.items.length === 1 ? "" : "s"}
+                            </span>
+                          </div>
+                        </td>
+                      </tr>
+                      {group.items.map((e) => (
+                        <tr
+                          key={e.id}
+                          className="border-t border-white/5 hover:bg-white/[0.03]"
+                        >
+                          {writable && (
+                            <td className="px-3 py-3">
+                              <input
+                                type="checkbox"
+                                checked={selected.includes(e.id)}
+                                onChange={() => toggle(e.id)}
+                              />
+                            </td>
+                          )}
+                          <td className="whitespace-nowrap px-3 py-3">
+                            <span className="font-semibold text-gold">
+                              {dayOf(e.date)} {monthShort(e.date)}
+                            </span>
+                            {e.time && (
+                              <span className="ml-2 text-white/40">
+                                {formatTime(e.time)}
+                              </span>
+                            )}
+                          </td>
+                          <td className="px-3 py-3">
+                            <button
+                              onClick={() => openEdit(e)}
+                              className="font-medium hover:text-gold"
+                            >
+                              {e.name}
+                            </button>
+                            {e.venue && (
+                              <p className="text-xs text-white/40">{e.venue}</p>
+                            )}
+                          </td>
+                          <td className="px-3 py-3">
+                            {e.city}/{e.state}
+                          </td>
+                          <td className="px-3 py-3">
+                            <StatusBadge
+                              status={e.status}
+                              label={e.status_display}
+                            />
+                          </td>
+                          <td className="px-3 py-3">
+                            <div className="flex justify-end gap-1">
+                              {writable && (
+                                <>
+                                  <button
+                                    onClick={() => duplicate(e)}
+                                    title="Duplicar"
+                                    className="rounded p-1.5 text-white/40 hover:bg-white/5 hover:text-gold"
+                                  >
+                                    <Copy size={15} />
+                                  </button>
+                                  <button
+                                    onClick={() => remove(e)}
+                                    title="Excluir"
+                                    className="rounded p-1.5 text-white/40 hover:bg-white/5 hover:text-red-400"
+                                  >
+                                    <Trash2 size={15} />
+                                  </button>
+                                </>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </Fragment>
+                  );
+                })}
                 {events.length === 0 && (
                   <tr>
                     <td
-                      colSpan={6}
+                      colSpan={colSpan}
                       className="px-3 py-10 text-center text-white/40"
                     >
                       Nenhum evento encontrado.
@@ -394,7 +462,7 @@ export default function EventosPage() {
             </table>
           </div>
         ) : (
-          <div className="rounded-2xl border border-white/10 bg-ink-card p-5">
+          <div className="admin-glass p-5">
             <div className="mb-4 flex items-center justify-between">
               <button
                 onClick={() =>
@@ -405,7 +473,7 @@ export default function EventosPage() {
                 }
                 className="rounded-lg border border-white/10 px-3 py-1 text-sm"
               >
-                ←
+                â†
               </button>
               <h2 className="font-display text-lg font-bold">
                 {MONTHS_PT[calMonth.m]} {calMonth.y}
@@ -459,7 +527,7 @@ export default function EventosPage() {
       {/* Modal */}
       {modal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-          <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-white/10 bg-ink-card p-6">
+          <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto admin-glass p-6">
             <h2 className="font-display text-xl font-bold">
               {editing ? "Editar evento" : "Novo evento"}
             </h2>
@@ -523,15 +591,88 @@ export default function EventosPage() {
                   className={inputCls}
                 />
               </Field>
-              <Field label="URL do banner">
+              <Field label="Banner do topo (opcional)">
                 <input
                   value={form.banner_url}
                   onChange={(e) =>
                     setForm({ ...form, banner_url: e.target.value })
                   }
                   className={inputCls}
+                  placeholder="Vazio = textura suave (recomendado)"
                 />
               </Field>
+              <p className="sm:col-span-2 -mt-2 text-xs text-white/35">
+                Deixe o banner vazio para usar a textura suave fixa no topo. Só
+                preencha se quiser uma imagem específica neste show.
+              </p>
+
+              <div className="sm:col-span-2">
+                <span className="mb-2 block text-xs text-white/50">
+                  Fundo do card de detalhes
+                </span>
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                  {CARD_BG_OPTIONS.map((opt) => {
+                    const active = form.card_bg_preset === opt.value;
+                    return (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        onClick={() =>
+                          setForm({
+                            ...form,
+                            card_bg_preset: opt.value,
+                          })
+                        }
+                        className={`overflow-hidden rounded-xl border text-left transition ${
+                          active
+                            ? "border-gold ring-1 ring-gold/40"
+                            : "border-white/10 hover:border-white/25"
+                        }`}
+                      >
+                        <div
+                          className="h-14 w-full"
+                          style={presetSwatchStyle(
+                            opt.value,
+                            form.card_bg_color
+                          )}
+                        />
+                        <div className="px-2.5 py-2">
+                          <p className="text-xs font-semibold text-white">
+                            {opt.label}
+                          </p>
+                          <p className="text-[10px] text-white/40">{opt.hint}</p>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {form.card_bg_preset === "solid" && (
+                <Field label="Cor do card">
+                  <input
+                    type="color"
+                    value={form.card_bg_color || "#121212"}
+                    onChange={(e) =>
+                      setForm({ ...form, card_bg_color: e.target.value })
+                    }
+                    className="h-10 w-full cursor-pointer rounded border border-white/10"
+                  />
+                </Field>
+              )}
+              {form.card_bg_preset === "custom_image" && (
+                <Field label="URL da imagem do card">
+                  <input
+                    value={form.card_bg_image_url}
+                    onChange={(e) =>
+                      setForm({ ...form, card_bg_image_url: e.target.value })
+                    }
+                    className={inputCls}
+                    placeholder="/images/... ou https://..."
+                  />
+                </Field>
+              )}
+
               <Field label="Link de ingressos">
                 <input
                   value={form.tickets_link}

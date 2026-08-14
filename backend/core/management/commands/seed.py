@@ -4,13 +4,14 @@ from django.contrib.auth import get_user_model
 from django.core.management.base import BaseCommand
 
 from core.demo_data import DEMO_LEADS
-from core.models import Notification, SiteConfig
+from core.models import Notification, SiteConfig, Sponsor
 from crm.models import Card, CardHistory, KanbanColumn, Label, Lead
 from events.models import Event
 
 User = get_user_model()
 
 REIDOSPEAO = "/images/rei-dos-peao.png"
+ARAGONES = "/images/aragones.png"
 
 AGENDA = [
     (date(2026, 8, 7), "Araucária", "PR"),
@@ -130,19 +131,47 @@ class Command(BaseCommand):
 
         config = SiteConfig.load()
         config.hero_title = "Rafael Aragão"
-        config.hero_subtitle = "Rei dos Peão — O humorista que lota teatros pelo Brasil"
-        config.hero_image_url = REIDOSPEAO
+        config.hero_subtitle_lead = "Espetáculo"
+        config.hero_subtitle = "O artista que lota teatros pelo Brasil"
+        config.hero_wordmark = "Rei dos Peão"
+        config.hero_badge = "Ao vivo · Turnê {year}"
+        config.hero_cta_primary = "Ver agenda"
+        config.hero_cta_secondary = "Contratar show"
+        config.hero_cta_icon_primary = "calendar-days"
+        config.hero_cta_icon_secondary = "handshake"
+        config.hero_next_label = "Próximo show"
+        config.hero_scroll_label = "Role"
+        config.nav_cta = "Faça seu evento"
+        config.nav_icon_cta = "sparkles"
+        config.nav_label_agenda = "Agenda"
+        config.nav_icon_agenda = "calendar-days"
+        config.nav_label_sobre = "Sobre"
+        config.nav_icon_sobre = "user-round"
+        config.nav_label_video = "Vídeo"
+        config.nav_icon_video = "clapperboard"
+        config.nav_label_contato = "Contratação"
+        config.nav_icon_contato = "handshake"
+        config.hero_tag_1 = "Humor de palco"
+        config.hero_tag_2 = "Turnê nacional"
+        config.hero_tag_3 = "Agenda {year}"
+        config.hero_tag_4 = "Teatros lotados"
+        config.hero_image_url = ARAGONES
         config.about_title = "Sobre o Artista"
         config.about_text = (
             "Rafael Aragão é um dos maiores nomes do humor nacional. Com o espetáculo "
             '"Rei dos Peão", leva gargalhadas a plateias por todo o país, misturando '
             "observações do cotidiano, causos e muita irreverência."
         )
-        config.about_image_url = "/images/aragones.png"
+        config.about_image_url = ARAGONES
         config.instagram = "https://instagram.com/orafaelaragao"
         config.youtube = "https://youtube.com/@orafaelaragao"
         config.spotify = "https://open.spotify.com/"
         config.contact_email = "contato@rafaelaragao.com.br"
+        config.contact_eyebrow = "Contratação"
+        config.contact_title_line1 = "FAÇA SEU EVENTO"
+        config.contact_title_line2 = "CORPORATIVO"
+        config.contact_scroll_hint = "Role para revelar o formulário"
+        config.contact_bg_image_url = REIDOSPEAO
         config.footer_text = "Rafael Aragão — Rei dos Peão"
         config.seo_title = "Rafael Aragão — Rei dos Peão | Humorista"
         config.seo_description = (
@@ -151,7 +180,19 @@ class Command(BaseCommand):
         config.featured_video_url = (
             "https://www.youtube.com/watch?v=GyBf5BKZFqw&t=5s"
         )
+        config.sponsors_title = "Patrocinadores"
         config.save()
+
+        if Sponsor.objects.count() == 0:
+            Sponsor.objects.create(
+                name="CDC", text_mark="CDC", order=0, is_active=True
+            )
+            Sponsor.objects.create(
+                name="Sistema Fiep | SENAI",
+                image_url="/images/senai.png",
+                order=1,
+                is_active=True,
+            )
 
         for i, (title, color, is_lost, is_won) in enumerate(COLUMNS):
             KanbanColumn.objects.get_or_create(
@@ -172,11 +213,23 @@ class Command(BaseCommand):
                     city=city,
                     state=state,
                     status=Event.Status.PUBLICADO,
-                    banner_url=REIDOSPEAO,
+                    banner_url="",
+                    card_bg_preset=Event.CardBgPreset.CHAIR,
                     description="Espetáculo de humor com Rafael Aragão.",
                     tickets_link="https://www.sympla.com.br/",
                 )
             self.stdout.write(self.style.SUCCESS(f"{len(AGENDA)} eventos criados."))
+        else:
+            # Remove só o banner “Rei dos Peão” genérico do topo (não sobrescreve presets custom)
+            cleared = Event.objects.filter(
+                banner_url__icontains="rei-dos-peao"
+            ).update(banner_url="")
+            if cleared:
+                self.stdout.write(
+                    self.style.SUCCESS(
+                        f"Removido banner genérico de {cleared} evento(s)."
+                    )
+                )
 
         # Dados demo CRM (se ainda não houver leads demo)
         if not Lead.objects.filter(is_demo=True).exists():

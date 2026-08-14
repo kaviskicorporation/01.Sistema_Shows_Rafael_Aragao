@@ -15,6 +15,7 @@ class EventSerializer(serializers.ModelSerializer):
         source="get_status_display", read_only=True
     )
     banner_display = serializers.SerializerMethodField()
+    card_bg_image_display = serializers.SerializerMethodField()
     session_count = serializers.SerializerMethodField()
 
     class Meta:
@@ -34,6 +35,11 @@ class EventSerializer(serializers.ModelSerializer):
             "banner",
             "banner_url",
             "banner_display",
+            "card_bg_preset",
+            "card_bg_color",
+            "card_bg_image",
+            "card_bg_image_url",
+            "card_bg_image_display",
             "status",
             "status_display",
             "internal_notes",
@@ -47,12 +53,18 @@ class EventSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ["slug", "created_at", "updated_at"]
 
-    def get_banner_display(self, obj):
+    def _abs(self, field):
         request = self.context.get("request")
-        if obj.banner:
-            url = obj.banner.url
+        if field:
+            url = field.url
             return request.build_absolute_uri(url) if request else url
-        return obj.banner_url or ""
+        return ""
+
+    def get_banner_display(self, obj):
+        return self._abs(obj.banner) or obj.banner_url or ""
+
+    def get_card_bg_image_display(self, obj):
+        return self._abs(obj.card_bg_image) or obj.card_bg_image_url or ""
 
     def get_session_count(self, obj):
         return obj.sessions.count()
@@ -61,6 +73,7 @@ class EventSerializer(serializers.ModelSerializer):
 class PublicEventSerializer(serializers.ModelSerializer):
     gallery = EventImageSerializer(many=True, read_only=True)
     banner_display = serializers.SerializerMethodField()
+    card_bg_image_display = serializers.SerializerMethodField()
 
     class Meta:
         model = Event
@@ -77,15 +90,24 @@ class PublicEventSerializer(serializers.ModelSerializer):
             "external_link",
             "description",
             "banner_display",
+            "card_bg_preset",
+            "card_bg_color",
+            "card_bg_image_display",
             "gallery",
         ]
 
-    def get_banner_display(self, obj):
+    def _abs(self, field):
         request = self.context.get("request")
-        if obj.banner:
-            url = obj.banner.url
+        if field:
+            url = field.url
             return request.build_absolute_uri(url) if request else url
-        return obj.banner_url or ""
+        return ""
+
+    def get_banner_display(self, obj):
+        return self._abs(obj.banner) or obj.banner_url or ""
+
+    def get_card_bg_image_display(self, obj):
+        return self._abs(obj.card_bg_image) or obj.card_bg_image_url or ""
 
 
 class EventTemplateSerializer(serializers.ModelSerializer):

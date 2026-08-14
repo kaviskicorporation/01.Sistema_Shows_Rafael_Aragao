@@ -51,7 +51,7 @@ export default function SoftCursor({
   return (
     <div
       aria-hidden
-      className={`pointer-events-none fixed inset-0 z-[90] hidden md:block ${
+      className={`pointer-events-none fixed inset-0 z-[40] hidden md:block ${
         active ? "opacity-100" : "opacity-0"
       } transition-opacity duration-150`}
     >

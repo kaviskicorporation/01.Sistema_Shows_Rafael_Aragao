@@ -14,6 +14,7 @@ from .models import (
     CardChecklistItem,
     CardComment,
     CardHistory,
+    CardNote,
     KanbanColumn,
     Label,
     Lead,
@@ -22,12 +23,21 @@ from .serializers import (
     CardAttachmentSerializer,
     CardChecklistItemSerializer,
     CardCommentSerializer,
+    CardNoteSerializer,
     CardSerializer,
     KanbanColumnSerializer,
     LabelSerializer,
     LeadSerializer,
     PublicLeadSerializer,
 )
+
+
+def _is_owner_or_admin(user, author_id):
+    if not user or not getattr(user, "is_authenticated", False):
+        return False
+    if getattr(user, "is_superuser", False) or getattr(user, "role", None) == "admin":
+        return True
+    return author_id == getattr(user, "id", None)
 
 
 def create_card_for_lead(lead, *, history_text="Lead recebido pelo formulário.", user=None):
@@ -128,7 +138,12 @@ class KanbanColumnViewSet(viewsets.ModelViewSet):
 
 class CardViewSet(viewsets.ModelViewSet):
     queryset = Card.objects.select_related("lead", "column", "responsible").prefetch_related(
-        "comments", "checklist", "attachments", "history", "labels"
+        "comments__author",
+        "notes__author",
+        "checklist",
+        "attachments__uploaded_by",
+        "history__user",
+        "labels",
     )
     serializer_class = CardSerializer
     permission_classes = [ModulePermission]
@@ -136,15 +151,51 @@ class CardViewSet(viewsets.ModelViewSet):
     filterset_fields = ["column", "priority", "responsible"]
 
     def perform_update(self, serializer):
-        old_column = serializer.instance.column_id
+        old = serializer.instance
+        old_column = old.column_id
+        old_priority = old.priority
+        old_follow = old.follow_up_date
+        old_label_ids = set(old.labels.values_list("id", flat=True))
         instance = serializer.save()
+        user = self.request.user
+
         if instance.column_id != old_column:
             CardHistory.objects.create(
                 card=instance,
-                user=self.request.user,
+                user=user,
                 text=f"Movido para {instance.column.title}",
             )
-            log_action(self.request.user, AuditLog.Action.MOVE, instance)
+            log_action(user, AuditLog.Action.MOVE, instance)
+        if instance.priority != old_priority:
+            CardHistory.objects.create(
+                card=instance,
+                user=user,
+                text=f"Prioridade alterada para {instance.get_priority_display()}",
+            )
+        if instance.follow_up_date != old_follow:
+            if instance.follow_up_date:
+                CardHistory.objects.create(
+                    card=instance,
+                    user=user,
+                    text=f"Follow-up definido para {instance.follow_up_date.strftime('%d/%m/%Y')}",
+                )
+            else:
+                CardHistory.objects.create(
+                    card=instance,
+                    user=user,
+                    text="Follow-up removido",
+                )
+        new_label_ids = set(instance.labels.values_list("id", flat=True))
+        if new_label_ids != old_label_ids:
+            names = ", ".join(
+                instance.labels.order_by("name").values_list("name", flat=True)
+            ) or "nenhuma"
+            CardHistory.objects.create(
+                card=instance,
+                user=user,
+                text=f"Etiquetas atualizadas: {names}",
+            )
+        log_action(user, AuditLog.Action.UPDATE, instance)
 
     @action(detail=True, methods=["post"])
     def move(self, request, pk=None):
@@ -168,9 +219,10 @@ class CardViewSet(viewsets.ModelViewSet):
             card.loss_reason = loss_reason
         card.save()
         if moved:
-            CardHistory.objects.create(
-                card=card, user=request.user, text=f"Movido para {card.column.title}"
-            )
+            text = f"Movido para {card.column.title}"
+            if loss_reason:
+                text += f" — motivo: {loss_reason[:120]}"
+            CardHistory.objects.create(card=card, user=request.user, text=text)
             log_action(request.user, AuditLog.Action.MOVE, card)
         return Response(self.get_serializer(card).data)
 
@@ -182,6 +234,11 @@ class CardViewSet(viewsets.ModelViewSet):
             return Response({"detail": "Comentário vazio."}, status=400)
         comment = CardComment.objects.create(
             card=card, author=request.user, text=text
+        )
+        CardHistory.objects.create(
+            card=card,
+            user=request.user,
+            text="Enviou mensagem no chat interno",
         )
         return Response(CardCommentSerializer(comment).data, status=201)
 
@@ -197,7 +254,6 @@ class CardViewSet(viewsets.ModelViewSet):
             user=request.user,
         )
         log_action(request.user, AuditLog.Action.CREATE, lead)
-        # Recarrega com relações do board
         card = self.get_queryset().get(pk=card.pk)
         return Response(self.get_serializer(card).data, status=status.HTTP_201_CREATED)
 
@@ -209,10 +265,129 @@ class CardChecklistItemViewSet(viewsets.ModelViewSet):
     module = "crm"
     filterset_fields = ["card"]
 
+    def perform_create(self, serializer):
+        item = serializer.save()
+        CardHistory.objects.create(
+            card=item.card,
+            user=self.request.user,
+            text=f"Tarefa adicionada: {item.text[:80]}",
+        )
+
+    def perform_update(self, serializer):
+        old_done = serializer.instance.done
+        item = serializer.save()
+        if item.done != old_done:
+            CardHistory.objects.create(
+                card=item.card,
+                user=self.request.user,
+                text=f"Tarefa {'concluída' if item.done else 'reaberta'}: {item.text[:80]}",
+            )
+
+    def perform_destroy(self, instance):
+        CardHistory.objects.create(
+            card=instance.card,
+            user=self.request.user,
+            text=f"Tarefa removida: {instance.text[:80]}",
+        )
+        instance.delete()
+
+
+class CardNoteViewSet(viewsets.ModelViewSet):
+    queryset = CardNote.objects.select_related("author", "card")
+    serializer_class = CardNoteSerializer
+    permission_classes = [ModulePermission]
+    module = "crm"
+    filterset_fields = ["card"]
+    http_method_names = ["get", "post", "patch", "delete", "head", "options"]
+
+    def perform_create(self, serializer):
+        note = serializer.save(author=self.request.user)
+        CardHistory.objects.create(
+            card=note.card,
+            user=self.request.user,
+            text=f"Anotação criada: {note.text[:80]}",
+        )
+
+    def update(self, request, *args, **kwargs):
+        instance = self.get_object()
+        if not _is_owner_or_admin(request.user, instance.author_id):
+            return Response(
+                {"detail": "Só quem criou a anotação pode editá-la."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        return super().update(request, *args, **kwargs)
+
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        if not _is_owner_or_admin(request.user, instance.author_id):
+            return Response(
+                {"detail": "Só quem criou a anotação pode removê-la."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        CardHistory.objects.create(
+            card=instance.card,
+            user=request.user,
+            text="Anotação removida",
+        )
+        instance.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class CardCommentViewSet(viewsets.ModelViewSet):
+    queryset = CardComment.objects.select_related("author", "card")
+    serializer_class = CardCommentSerializer
+    permission_classes = [ModulePermission]
+    module = "crm"
+    http_method_names = ["get", "patch", "delete", "head", "options"]
+
+    def update(self, request, *args, **kwargs):
+        instance = self.get_object()
+        if not _is_owner_or_admin(request.user, instance.author_id):
+            return Response(
+                {"detail": "Só quem enviou a mensagem pode editá-la."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        return super().update(request, *args, **kwargs)
+
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        if not _is_owner_or_admin(request.user, instance.author_id):
+            return Response(
+                {"detail": "Só quem enviou a mensagem pode removê-la."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        instance.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
 
 class CardAttachmentViewSet(viewsets.ModelViewSet):
-    queryset = CardAttachment.objects.all()
+    queryset = CardAttachment.objects.select_related("uploaded_by", "card")
     serializer_class = CardAttachmentSerializer
     permission_classes = [ModulePermission]
     module = "crm"
     filterset_fields = ["card"]
+
+    def perform_create(self, serializer):
+        card = serializer.validated_data["card"]
+        if card.attachments.count() >= 5:
+            from rest_framework.exceptions import ValidationError
+
+            raise ValidationError(
+                {"detail": "Máximo de 5 anexos por card."}
+            )
+        attachment = serializer.save()
+        CardHistory.objects.create(
+            card=card,
+            user=self.request.user,
+            text=f"Anexo enviado: {attachment.name or attachment.file.name}",
+        )
+
+    def perform_destroy(self, instance):
+        card = instance.card
+        name = instance.name or (instance.file.name if instance.file else "arquivo")
+        CardHistory.objects.create(
+            card=card,
+            user=self.request.user,
+            text=f"Anexo removido: {name}",
+        )
+        instance.delete()

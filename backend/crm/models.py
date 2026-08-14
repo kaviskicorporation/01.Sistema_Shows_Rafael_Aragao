@@ -125,6 +125,24 @@ class CardComment(models.Model):
         ordering = ["created_at"]
 
 
+class CardNote(models.Model):
+    """Anotação interna no card — só o autor (ou admin) pode editar/remover."""
+
+    card = models.ForeignKey(
+        Card, on_delete=models.CASCADE, related_name="notes"
+    )
+    author = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, on_delete=models.SET_NULL
+    )
+    text = models.TextField()
+    pinned = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-pinned", "-created_at"]
+
+
 class CardChecklistItem(models.Model):
     card = models.ForeignKey(
         Card, on_delete=models.CASCADE, related_name="checklist"
@@ -143,6 +161,13 @@ class CardAttachment(models.Model):
     )
     file = models.FileField(upload_to="crm/attachments/")
     name = models.CharField(max_length=200, blank=True)
+    uploaded_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="card_attachments",
+    )
     uploaded_at = models.DateTimeField(auto_now_add=True)
 
 
@@ -153,7 +178,7 @@ class CardHistory(models.Model):
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL, null=True, on_delete=models.SET_NULL
     )
-    text = models.CharField(max_length=300)
+    text = models.CharField(max_length=500)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

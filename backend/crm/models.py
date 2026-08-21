@@ -183,3 +183,58 @@ class CardHistory(models.Model):
 
     class Meta:
         ordering = ["-created_at"]
+
+
+class CardEmailMessage(models.Model):
+    """Fio de e-mail por card — envio (out) e recebimento IMAP (in)."""
+
+    class Direction(models.TextChoices):
+        OUT = "out", "Enviado"
+        IN = "in", "Recebido"
+
+    class BodyKind(models.TextChoices):
+        TEXT = "text", "Texto"
+        HTML = "html", "HTML"
+
+    card = models.ForeignKey(
+        Card, on_delete=models.CASCADE, related_name="emails"
+    )
+    direction = models.CharField(max_length=8, choices=Direction.choices)
+    subject = models.CharField(max_length=300, blank=True)
+    body_text = models.TextField(blank=True)
+    body_html = models.TextField(blank=True)
+    body_kind = models.CharField(
+        max_length=8, choices=BodyKind.choices, default=BodyKind.TEXT
+    )
+    from_email = models.EmailField()
+    to_email = models.EmailField()
+    message_id = models.CharField(max_length=300, blank=True, db_index=True)
+    in_reply_to = models.CharField(max_length=300, blank=True)
+    imap_uid = models.CharField(max_length=40, blank=True, db_index=True)
+    is_bounce = models.BooleanField(default=False)
+    sent_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="card_emails",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["created_at"]
+
+    def __str__(self):
+        return f"{self.direction} {self.subject[:40]}"
+
+
+class CardEmailAttachment(models.Model):
+    message = models.ForeignKey(
+        CardEmailMessage, on_delete=models.CASCADE, related_name="files"
+    )
+    file = models.FileField(upload_to="crm/email/")
+    name = models.CharField(max_length=200, blank=True)
+    content_type = models.CharField(max_length=120, blank=True)
+
+    def __str__(self):
+        return self.name or "anexo"

@@ -437,7 +437,7 @@ export default function AgendaSection({
                                   <a
                                     href={ev.tickets_link}
                                     target="_blank"
-                                    rel="noreferrer"
+                                    rel="noopener noreferrer"
                                     className="inline-flex items-center gap-1 rounded-lg bg-gold px-2.5 py-1.5 text-[11px] font-bold text-ink transition hover:brightness-110"
                                   >
                                     <Ticket size={12} />
@@ -746,6 +746,28 @@ export default function AgendaSection({
                             />
                           </div>
 
+                          <div className="mt-auto flex flex-wrap gap-2.5 pt-1">
+                            <Link
+                              href={`/shows/${ev.slug}`}
+                              className="cursor-pointer rounded-full border border-white/20 bg-white/[0.03] px-5 py-2.5 text-sm font-semibold text-white transition hover:border-gold/50 hover:text-gold"
+                              onMouseMove={trackBtn}
+                            >
+                              Ver detalhes
+                            </Link>
+                            {ev.tickets_link ? (
+                              <a
+                                href={ev.tickets_link}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex cursor-pointer items-center gap-2 rounded-full bg-gold px-5 py-2.5 text-sm font-bold text-ink transition hover:brightness-110"
+                                onMouseMove={trackBtn}
+                              >
+                                <ShoppingCart size={16} strokeWidth={2.25} />
+                                Comprar ingressos
+                              </a>
+                            ) : null}
+                          </div>
+
                           {monthShows.length > 0 && (
                             <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3.5">
                               <p className="mb-2.5 text-[10px] font-semibold uppercase tracking-[0.2em] text-white/40">
@@ -774,28 +796,6 @@ export default function AgendaSection({
                               </ul>
                             </div>
                           )}
-
-                          <div className="mt-auto flex flex-wrap gap-2.5 pt-1">
-                            <Link
-                              href={`/shows/${ev.slug}`}
-                              className="cursor-pointer rounded-full border border-white/20 bg-white/[0.03] px-5 py-2.5 text-sm font-semibold text-white transition hover:border-gold/50 hover:text-gold"
-                              onMouseMove={trackBtn}
-                            >
-                              Ver detalhes
-                            </Link>
-                            {ev.tickets_link && (
-                              <a
-                                href={ev.tickets_link}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="inline-flex cursor-pointer items-center gap-2 rounded-full bg-gold px-5 py-2.5 text-sm font-bold text-ink transition hover:brightness-110"
-                                onMouseMove={trackBtn}
-                              >
-                                <ShoppingCart size={16} strokeWidth={2.25} />
-                                Comprar ingressos
-                              </a>
-                            )}
-                          </div>
                         </div>
                       );
                     })}

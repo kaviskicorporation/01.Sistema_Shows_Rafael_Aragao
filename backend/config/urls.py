@@ -12,12 +12,21 @@ from accounts.views import (
     RefreshView,
     UserViewSet,
 )
+from core.notifications.api import (
+    NotificationPreferenceBulkView,
+    NotificationRecipientViewSet,
+    NotificationSettingsView,
+    NotificationTemplateView,
+)
 from core.views import (
     AuditLogViewSet,
     DashboardPDFView,
     DashboardView,
     DemoDataView,
+    EmailSettingsClearView,
+    EmailSettingsView,
     EventExportView,
+    FaqItemViewSet,
     LeadExportView,
     NotificationViewSet,
     SiteConfigView,
@@ -59,6 +68,12 @@ router.register("users", UserViewSet, basename="user")
 router.register("audit-logs", AuditLogViewSet, basename="audit-log")
 router.register("notifications", NotificationViewSet, basename="notification")
 router.register("sponsors", SponsorViewSet, basename="sponsor")
+router.register("faqs", FaqItemViewSet, basename="faq")
+router.register(
+    "notification-recipients",
+    NotificationRecipientViewSet,
+    basename="notification-recipient",
+)
 
 public_router = DefaultRouter(trailing_slash=False)
 public_router.register("events", PublicEventViewSet, basename="public-event")
@@ -90,6 +105,16 @@ urlpatterns = [
     # Site config (GET público, PUT admin)
     path("api/site-config", SiteConfigView.as_view()),
     path("api/site-config/", SiteConfigView.as_view()),
+    path("api/email-settings", EmailSettingsView.as_view()),
+    path("api/email-settings/", EmailSettingsView.as_view()),
+    path("api/email-settings/clear", EmailSettingsClearView.as_view()),
+    path("api/email-settings/clear/", EmailSettingsClearView.as_view()),
+    path("api/notification-settings", NotificationSettingsView.as_view()),
+    path("api/notification-settings/", NotificationSettingsView.as_view()),
+    path("api/notification-settings/preferences", NotificationPreferenceBulkView.as_view()),
+    path("api/notification-settings/preferences/", NotificationPreferenceBulkView.as_view()),
+    path("api/notification-settings/templates", NotificationTemplateView.as_view()),
+    path("api/notification-settings/templates/", NotificationTemplateView.as_view()),
     # Public
     path("api/public/leads", PublicLeadView.as_view({"post": "create"})),
     path("api/public/leads/", PublicLeadView.as_view({"post": "create"})),

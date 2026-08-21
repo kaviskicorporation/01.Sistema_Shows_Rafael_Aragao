@@ -21,6 +21,7 @@ import {
   Clapperboard,
   List,
   Handshake,
+  HelpCircle,
   AlertTriangle,
   X,
   Menu,
@@ -29,6 +30,7 @@ import {
 import Topbar from "@/components/admin/Topbar";
 import AdminHero from "@/components/admin/AdminHero";
 import SponsorsEditor from "@/components/admin/SponsorsEditor";
+import FaqEditor from "@/components/admin/FaqEditor";
 import NavIconPicker from "@/components/admin/NavIconPicker";
 import { api, ApiError } from "@/lib/api";
 import type { SiteConfig } from "@/lib/types";
@@ -55,6 +57,7 @@ const CONFIG_NAV: {
   { id: "cfg-redes", label: "Redes sociais", icon: Share2 },
   { id: "cfg-rodape", label: "Rodapé e contato", icon: Mail },
   { id: "cfg-patrocinadores", label: "Patrocinadores", icon: Handshake },
+  { id: "cfg-faq", label: "FAQ", icon: HelpCircle },
   { id: "cfg-seo", label: "SEO / Open Graph", icon: Search },
   { id: "cfg-video", label: "Vídeo em destaque", icon: Clapperboard },
   { id: "cfg-agenda", label: "Agenda pública", icon: CalendarDays },
@@ -110,6 +113,8 @@ const TRACKED_KEYS: (keyof SiteConfig)[] = [
   "agenda_list_page_size",
   "featured_video_url",
   "sponsors_title",
+  "faq_eyebrow",
+  "faq_title",
 ];
 
 function snapshotConfig(form: Partial<SiteConfig>) {
@@ -573,6 +578,14 @@ export default function ConfiguracoesPage() {
         [
           "sponsors_title",
           current.sponsors_title || SITE_DEFAULTS.sponsors_title || "Patrocinadores",
+        ],
+        [
+          "faq_eyebrow",
+          current.faq_eyebrow || SITE_DEFAULTS.faq_eyebrow || "Dúvidas",
+        ],
+        [
+          "faq_title",
+          current.faq_title || SITE_DEFAULTS.faq_title || "Perguntas frequentes",
         ],
       ];
       for (const [k, v] of fields) fd.append(k, String(v));
@@ -1220,6 +1233,46 @@ export default function ConfiguracoesPage() {
           <p className="mt-2 text-[11px] text-white/35">
             O título acima é salvo com o botão Salvar no final da página. Os
             logos salvam automaticamente ao editar.
+          </p>
+        </Section>
+
+        <Section id="cfg-faq" title="FAQ — Perguntas frequentes" icon={HelpCircle}>
+          <ConfigField
+            label="Olho da seção"
+            icon={Type}
+            fieldKey="faq_eyebrow"
+            canReset={writable}
+            onReset={() => resetField("faq_eyebrow")}
+          >
+            <input
+              value={form.faq_eyebrow || ""}
+              onChange={(e) => set("faq_eyebrow", e.target.value)}
+              className={inputCls}
+              disabled={!writable}
+              placeholder="Dúvidas"
+            />
+          </ConfigField>
+          <ConfigField
+            label="Título da seção"
+            icon={Type}
+            fieldKey="faq_title"
+            canReset={writable}
+            onReset={() => resetField("faq_title")}
+          >
+            <input
+              value={form.faq_title || ""}
+              onChange={(e) => set("faq_title", e.target.value)}
+              className={inputCls}
+              disabled={!writable}
+              placeholder="Perguntas frequentes"
+            />
+          </ConfigField>
+          <div className="mt-2 overflow-x-hidden">
+            <FaqEditor writable={writable} />
+          </div>
+          <p className="mt-2 text-[11px] text-white/35">
+            Olho e título salvam no botão Salvar no final da página. Perguntas e
+            respostas salvam ao sair do campo.
           </p>
         </Section>
 

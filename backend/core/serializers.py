@@ -1,7 +1,15 @@
 from rest_framework import serializers
 
 from .contact_form import default_contact_form_config, normalize_contact_form_config
-from .models import AuditLog, Notification, SiteConfig, Sponsor
+from .models import (
+    AuditLog,
+    Notification,
+    NotificationPreference,
+    NotificationRecipient,
+    SiteConfig,
+    Sponsor,
+    FaqItem,
+)
 
 
 class SponsorSerializer(serializers.ModelSerializer):
@@ -39,6 +47,42 @@ class SponsorSerializer(serializers.ModelSerializer):
                 instance.image.delete(save=False)
             instance.image = None
         return super().update(instance, validated_data)
+
+
+class FaqItemSerializer(serializers.ModelSerializer):
+    answer_html = serializers.SerializerMethodField()
+
+    class Meta:
+        model = FaqItem
+        fields = [
+            "id",
+            "question",
+            "answer",
+            "answer_html",
+            "icon",
+            "order",
+            "is_active",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = ["id", "answer_html", "created_at", "updated_at"]
+
+    def get_answer_html(self, obj):
+        from core.html_sanitize import prepare_faq_answer
+
+        return prepare_faq_answer(obj.answer or "")
+
+    def validate_question(self, value):
+        text = (value or "").strip()
+        if not text:
+            raise serializers.ValidationError("Informe a pergunta.")
+        return text
+
+    def validate_answer(self, value):
+        text = (value or "").strip()
+        if not text:
+            raise serializers.ValidationError("Informe a resposta.")
+        return text
 
 
 class SiteConfigSerializer(serializers.ModelSerializer):
@@ -127,6 +171,8 @@ class SiteConfigSerializer(serializers.ModelSerializer):
             "contact_bg_image_display",
             "featured_video_url",
             "sponsors_title",
+            "faq_eyebrow",
+            "faq_title",
             "sponsors",
             "demo_data_active",
             "updated_at",
@@ -248,4 +294,53 @@ class AuditLogSerializer(serializers.ModelSerializer):
 class NotificationSerializer(serializers.ModelSerializer):
     class Meta:
         model = Notification
-        fields = ["id", "title", "message", "link", "is_read", "created_at"]
+        fields = [
+            "id",
+            "title",
+            "message",
+            "link",
+            "is_read",
+            "event_type",
+            "created_at",
+        ]
+        read_only_fields = [
+            "id",
+            "title",
+            "message",
+            "link",
+            "event_type",
+            "created_at",
+        ]
+
+
+class NotificationPreferenceSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = NotificationPreference
+        fields = [
+            "event_type",
+            "notify_admin",
+            "notify_gerente",
+            "notify_comercial",
+            "notify_visualizador",
+            "send_email",
+            "email_recipient_ids",
+        ]
+
+
+class NotificationRecipientSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = NotificationRecipient
+        fields = ["id", "email", "is_primary", "is_active", "created_at"]
+        read_only_fields = ["id", "created_at"]
+
+    def validate_email(self, value):
+        email = (value or "").strip().lower()
+        if not email:
+            raise serializers.ValidationError("Informe um e-mail.")
+        qs = NotificationRecipient.objects.filter(email=email)
+        if self.instance:
+            qs = qs.exclude(pk=self.instance.pk)
+        if qs.exists():
+            raise serializers.ValidationError("Este e-mail já está cadastrado.")
+        return email
+

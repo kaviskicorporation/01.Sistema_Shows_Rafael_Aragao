@@ -5,6 +5,14 @@ import os
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+# Carrega backend/.env local (gitignored). Não falha se python-dotenv não estiver instalado.
+try:
+    from dotenv import load_dotenv
+
+    load_dotenv(BASE_DIR / ".env", override=True)
+except ImportError:
+    pass
+
 SECRET_KEY = os.environ.get(
     "DJANGO_SECRET_KEY",
     "dev-insecure-key-change-me-in-production-0a1b2c3d4e5f",
@@ -92,6 +100,9 @@ else:
         "default": {
             "ENGINE": "django.db.backends.sqlite3",
             "NAME": BASE_DIR / "db.sqlite3",
+            "OPTIONS": {
+                "timeout": 30,
+            },
         }
     }
 
@@ -178,3 +189,40 @@ CSRF_TRUSTED_ORIGINS = list(
 if not DEBUG:
     SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
     USE_X_FORWARDED_HOST = True
+
+# SMTP/IMAP padrão — SOMENTE via ambiente. Nunca vazar para API/frontend.
+def _env_bool(name: str, default: str = "0") -> bool:
+    return os.environ.get(name, default).strip().lower() in ("1", "true", "yes", "on")
+
+
+SMTP_HOST = os.environ.get("SMTP_HOST", "").strip()
+SMTP_PORT = int(os.environ.get("SMTP_PORT", "587") or 587)
+SMTP_USER = os.environ.get("SMTP_USER", "").strip()
+SMTP_PASSWORD = os.environ.get("SMTP_PASSWORD", "")
+SMTP_FROM = os.environ.get("SMTP_FROM", "").strip() or SMTP_USER
+SMTP_USE_TLS = _env_bool("SMTP_USE_TLS", "1")
+SMTP_ALLOW_SELF_SIGNED = _env_bool("SMTP_ALLOW_SELF_SIGNED", "1")
+MAIL_SENDER_NAME = os.environ.get("MAIL_SENDER_NAME", "Rafael Aragão").strip()
+
+IMAP_HOST = os.environ.get("IMAP_HOST", "").strip()
+IMAP_PORT = int(os.environ.get("IMAP_PORT", "993") or 993)
+IMAP_USER = os.environ.get("IMAP_USER", "").strip()
+IMAP_PASSWORD = os.environ.get("IMAP_PASSWORD", "")
+IMAP_SSL = _env_bool("IMAP_SSL", "1")
+IMAP_ALLOW_SELF_SIGNED = _env_bool("IMAP_ALLOW_SELF_SIGNED", "1")
+IMAP_POLL_SECONDS = int(os.environ.get("IMAP_POLL_SECONDS", "25") or 25)
+
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "handlers": {
+        "console": {"class": "logging.StreamHandler"},
+    },
+    "root": {"handlers": ["console"], "level": "INFO"},
+    "loggers": {
+        "core.mailer": {"level": "INFO", "handlers": ["console"], "propagate": False},
+        "crm.lead_mail": {"level": "INFO", "handlers": ["console"], "propagate": False},
+        "crm.imap_inbox": {"level": "INFO", "handlers": ["console"], "propagate": False},
+    },
+}
+

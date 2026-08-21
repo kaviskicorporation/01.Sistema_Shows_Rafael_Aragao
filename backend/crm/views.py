@@ -1,18 +1,23 @@
+import logging
+
 from django.db.models import Q
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
+from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 
 from accounts.permissions import ModulePermission
 from core.audit import log_action
-from core.models import AuditLog, Notification
+from core.models import AuditLog
 
 from .models import (
     Card,
     CardAttachment,
     CardChecklistItem,
     CardComment,
+    CardEmailAttachment,
+    CardEmailMessage,
     CardHistory,
     CardNote,
     KanbanColumn,
@@ -23,6 +28,7 @@ from .serializers import (
     CardAttachmentSerializer,
     CardChecklistItemSerializer,
     CardCommentSerializer,
+    CardEmailMessageSerializer,
     CardNoteSerializer,
     CardSerializer,
     KanbanColumnSerializer,
@@ -30,6 +36,8 @@ from .serializers import (
     LeadSerializer,
     PublicLeadSerializer,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def _is_owner_or_admin(user, author_id):
@@ -40,7 +48,13 @@ def _is_owner_or_admin(user, author_id):
     return author_id == getattr(user, "id", None)
 
 
-def create_card_for_lead(lead, *, history_text="Lead recebido pelo formulário.", user=None):
+def create_card_for_lead(
+    lead,
+    *,
+    history_text="Lead recebido pelo formulário.",
+    user=None,
+    notify_email=False,
+):
     """Cria automaticamente um card na primeira coluna e notifica."""
     column = KanbanColumn.objects.order_by("order", "id").first()
     if column is None:
@@ -56,11 +70,34 @@ def create_card_for_lead(lead, *, history_text="Lead recebido pelo formulário."
         .exists()
     )
     dup_txt = " (possível duplicado)" if dup else ""
-    Notification.objects.create(
-        title=f"Novo lead: {lead.name}{dup_txt}",
-        message=f"{lead.area_display} — {lead.get_category_display()}",
-        link="/admin/crm",
-    )
+    area = f"{lead.area_display} — {lead.get_category_display()}"
+    if notify_email:
+        try:
+            from .lead_mail import notify_new_lead
+
+            notify_new_lead(lead, card)
+        except Exception:
+            logger.exception("Falha ao disparar e-mails do lead %s", lead.pk)
+    try:
+        from core.notifications import emit_safe
+        from core.notifications.events import CRM_LEAD_CREATED
+
+        emit_safe(
+            CRM_LEAD_CREATED,
+            actor=user,
+            payload={
+                "leadName": f"{lead.name}{dup_txt}",
+                "sender": lead.email or "",
+                "eventName": area,
+                "recipient": lead.email or "",
+            },
+            dedupe_key=f"lead:{lead.pk}",
+            link=f"/admin/crm?card={card.pk}",
+            title=f"Novo lead: {lead.name}{dup_txt}",
+            message=area,
+        )
+    except Exception:
+        logger.exception("Falha ao notificar novo lead %s", lead.pk)
     return card
 
 
@@ -72,7 +109,12 @@ class PublicLeadView(viewsets.ViewSet):
         serializer = PublicLeadSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         lead = serializer.save()
-        create_card_for_lead(lead)
+        try:
+            create_card_for_lead(lead, notify_email=True)
+        except Exception:
+            logger.exception(
+                "Lead %s salvo, mas o card/e-mail automático falhou.", lead.pk
+            )
         return Response(
             {"detail": "Solicitação enviada com sucesso! Em breve entraremos em contato."},
             status=status.HTTP_201_CREATED,
@@ -95,6 +137,10 @@ class LeadViewSet(viewsets.ModelViewSet):
             user=self.request.user,
         )
         log_action(self.request.user, AuditLog.Action.CREATE, lead)
+
+    def perform_destroy(self, instance):
+        log_action(self.request.user, AuditLog.Action.DELETE, instance)
+        instance.delete()
 
 
 class LabelViewSet(viewsets.ModelViewSet):
@@ -144,9 +190,12 @@ class CardViewSet(viewsets.ModelViewSet):
         "attachments__uploaded_by",
         "history__user",
         "labels",
+        "emails__files",
+        "emails__sent_by",
     )
     serializer_class = CardSerializer
     permission_classes = [ModulePermission]
+    parser_classes = [JSONParser, MultiPartParser, FormParser]
     module = "crm"
     filterset_fields = ["column", "priority", "responsible"]
 
@@ -196,6 +245,19 @@ class CardViewSet(viewsets.ModelViewSet):
                 text=f"Etiquetas atualizadas: {names}",
             )
         log_action(user, AuditLog.Action.UPDATE, instance)
+
+    def perform_destroy(self, instance):
+        """Remove o card e o lead. Dados só daquele card (e-mails, notas, anexos) saem junto."""
+        lead = instance.lead
+        for att in instance.attachments.all():
+            if att.file:
+                att.file.delete(save=False)
+        for msg in instance.emails.all():
+            for f in msg.files.all():
+                if f.file:
+                    f.file.delete(save=False)
+        log_action(self.request.user, AuditLog.Action.DELETE, lead)
+        lead.delete()
 
     @action(detail=True, methods=["post"])
     def move(self, request, pk=None):
@@ -256,6 +318,154 @@ class CardViewSet(viewsets.ModelViewSet):
         log_action(request.user, AuditLog.Action.CREATE, lead)
         card = self.get_queryset().get(pk=card.pk)
         return Response(self.get_serializer(card).data, status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=["post"], url_path="emails")
+    def send_email_thread(self, request, pk=None):
+        """Envia e-mail real para o lead e grava no fio da Troca de e-mails."""
+        from core.mailconf import smtp_ready
+        from core.mailer import MailSendError, send_email
+
+        card = self.get_object()
+        subject = str(request.data.get("subject") or "").strip()
+        body = str(request.data.get("body") or "").strip()
+        kind = str(request.data.get("kind") or "text").strip().lower()
+        if kind not in ("text", "html"):
+            kind = "text"
+        if not subject:
+            return Response({"detail": "Informe o assunto."}, status=400)
+        if not body:
+            return Response({"detail": "Informe o corpo do e-mail."}, status=400)
+        if not smtp_ready():
+            return Response(
+                {"detail": "Servidor de e-mail indisponível."},
+                status=503,
+            )
+
+        files = request.FILES.getlist("files") or request.FILES.getlist("file")
+        attachments = []
+        for f in files:
+            attachments.append(
+                (f.name, f.read(), getattr(f, "content_type", "") or "application/octet-stream")
+            )
+            f.seek(0)
+
+        reply_to_id = str(request.data.get("reply_to") or "").strip()
+        in_reply = ""
+        refs = ""
+        if reply_to_id.isdigit():
+            prev = card.emails.filter(pk=int(reply_to_id)).first()
+            if prev:
+                in_reply = prev.message_id or ""
+                refs = " ".join(
+                    x for x in (prev.in_reply_to, prev.message_id) if x
+                ).strip()
+
+        from core.html_sanitize import html_to_text, sanitize_html, text_to_html, wrap_html_document
+
+        if kind == "html":
+            cleaned = sanitize_html(body)
+            body_html = wrap_html_document(
+                cleaned if "<" in body else text_to_html(body)
+            )
+            body_text = html_to_text(cleaned or body)
+            if not body_text:
+                return Response({"detail": "Informe o corpo do e-mail."}, status=400)
+        else:
+            body_html = ""
+            body_text = body
+
+        try:
+            mid = send_email(
+                to=card.lead.email,
+                subject=subject,
+                body_text=body_text,
+                body_html=body_html or None,
+                attachments=attachments,
+                in_reply_to=in_reply,
+                references=refs,
+            )
+        except MailSendError as exc:
+            return Response({"detail": str(exc)}, status=502)
+
+        from .lead_mail import record_outbound
+
+        record = record_outbound(
+            card,
+            subject=subject,
+            body_text=body_text,
+            body_html=body_html,
+            kind=(
+                CardEmailMessage.BodyKind.HTML
+                if kind == "html"
+                else CardEmailMessage.BodyKind.TEXT
+            ),
+            to_email=card.lead.email,
+            message_id=mid,
+            in_reply_to=in_reply,
+            sent_by=request.user,
+        )
+        for f in files:
+            att = CardEmailAttachment(
+                message=record,
+                name=(f.name or "anexo")[:200],
+                content_type=(getattr(f, "content_type", "") or "")[:120],
+            )
+            att.file.save(f.name[:80], f, save=True)
+
+        CardHistory.objects.create(
+            card=card,
+            user=request.user,
+            text=f"Enviou e-mail: {subject[:80]}",
+        )
+        from core.notifications import emit_safe
+        from core.notifications.events import CRM_MESSAGE_SENT
+
+        emit_safe(
+            CRM_MESSAGE_SENT,
+            actor=request.user,
+            payload={
+                "leadName": card.lead.name,
+                "subject": subject,
+                "recipient": card.lead.email or "",
+            },
+            dedupe_key=f"sent:{record.pk}",
+            link=f"/admin/crm?card={card.pk}&tab=emails",
+        )
+        return Response(
+            CardEmailMessageSerializer(record, context={"request": request}).data,
+            status=status.HTTP_201_CREATED,
+        )
+
+    @action(detail=True, methods=["post"], url_path="emails/sync")
+    def sync_email_thread(self, request, pk=None):
+        """Consulta o IMAP na hora e devolve o fio atualizado do lead."""
+        from core.mailconf import imap_ready
+
+        card = self.get_object()
+        if not imap_ready():
+            return Response(
+                {"detail": "IMAP não configurado."}, status=503
+            )
+        try:
+            from .imap_inbox import poll_inbox
+
+            fetched = poll_inbox(once=True)
+        except Exception as exc:
+            logger.exception("Falha ao sincronizar IMAP")
+            return Response(
+                {"detail": f"Não foi possível ler a caixa de entrada: {exc}"},
+                status=502,
+            )
+
+        messages = card.emails.order_by("created_at")
+        return Response(
+            {
+                "fetched": fetched,
+                "emails": CardEmailMessageSerializer(
+                    messages, many=True, context={"request": request}
+                ).data,
+            }
+        )
 
 
 class CardChecklistItemViewSet(viewsets.ModelViewSet):

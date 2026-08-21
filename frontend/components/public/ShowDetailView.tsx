@@ -152,7 +152,7 @@ export default function ShowDetailView({
                     <motion.a
                       href={event.tickets_link}
                       target="_blank"
-                      rel="noreferrer"
+                      rel="noopener noreferrer"
                       whileHover={{ scale: 1.03, y: -1 }}
                       whileTap={{ scale: 0.98 }}
                       className="btn-live inline-flex items-center gap-2.5 rounded-full bg-gold px-6 py-3 text-[15px] font-bold text-ink sm:px-8 sm:py-3.5 sm:text-base"
@@ -171,7 +171,7 @@ export default function ShowDetailView({
                     <a
                       href={event.external_link}
                       target="_blank"
-                      rel="noreferrer"
+                      rel="noopener noreferrer"
                       className="rounded-full border border-white/20 bg-black/25 px-6 py-3 text-[15px] font-semibold text-white/90 backdrop-blur transition hover:border-gold hover:text-gold sm:px-7 sm:py-3.5 sm:text-base"
                     >
                       Mais informações

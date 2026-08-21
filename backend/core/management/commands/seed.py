@@ -4,7 +4,7 @@ from django.contrib.auth import get_user_model
 from django.core.management.base import BaseCommand
 
 from core.demo_data import DEMO_LEADS
-from core.models import Notification, SiteConfig, Sponsor
+from core.models import FaqItem, SiteConfig, Sponsor
 from crm.models import Card, CardHistory, KanbanColumn, Label, Lead
 from events.models import Event
 
@@ -259,11 +259,59 @@ class Command(BaseCommand):
                 )
             config.demo_data_active = True
             config.save(update_fields=["demo_data_active", "updated_at"])
-            Notification.objects.create(
-                title="Dados de demonstração ativos",
-                message="O dashboard/CRM têm leads demo. Remova no Dashboard antes de entregar.",
-                link="/admin",
-            )
             self.stdout.write(self.style.SUCCESS("Leads de demonstração criados."))
+
+        if not FaqItem.objects.exists():
+            samples = [
+                (
+                    "Como faço para contratar o Rafael Aragão para um evento?",
+                    "Preencha o formulário de contratação acima com data, cidade e tipo de evento. A equipe responde por e-mail para alinhar disponibilidade e os próximos passos.",
+                    "handshake",
+                ),
+                (
+                    "Vocês atendem eventos corporativos, prefeituras e teatros?",
+                    "Sim. O espetáculo Rei dos Peão circula em teatros, eventos corporativos, prefeituras e datas especiais. Informe o formato no campo de tipo de evento.",
+                    "building-2",
+                ),
+                (
+                    "Como acompanho as datas da turnê?",
+                    "A agenda desta página mostra os shows já confirmados. Se a sua cidade ainda não aparece, solicite uma data pelo formulário.",
+                    "calendar-days",
+                ),
+                (
+                    "Qual o prazo ideal para solicitar um show?",
+                    "O quanto antes, melhor. Em alta temporada o ideal é com alguns meses de antecedência para encaixar deslocamento, equipe e palco.",
+                    "clock",
+                ),
+                (
+                    "Como funciona cachê e forma de pagamento?",
+                    'Os valores dependem de data, cidade e estrutura do evento. Depois do primeiro contato a equipe envia uma proposta. Instagram: <a href="https://www.instagram.com/rafaelaragaooficial">@rafaelaragaooficial</a>.',
+                    "wallet",
+                ),
+                (
+                    "Posso contratar um evento fechado ou particular?",
+                    "Sim. Eventos fechados, confraternizações e datas corporativas seguem o mesmo fluxo: formulário acima → contato da equipe → proposta.",
+                    "users",
+                ),
+                (
+                    "O show inclui equipe e estrutura de palco?",
+                    "O Rafael viaja com equipe. Som, luz e palco dependem do porte da casa e entram na proposta. No formulário, descreva o espaço — isso agiliza o orçamento.",
+                    "map-pin",
+                ),
+                (
+                    "O que acontece depois que eu envio o formulário?",
+                    "A equipe confirma o recebimento, avalia a data e retorna com disponibilidade e os próximos passos. Se faltar algum dado, pedimos o complemento por e-mail.",
+                    "mic-2",
+                ),
+            ]
+            for i, (question, answer, icon) in enumerate(samples):
+                FaqItem.objects.create(
+                    question=question,
+                    answer=answer,
+                    icon=icon,
+                    order=i,
+                    is_active=True,
+                )
+            self.stdout.write(self.style.SUCCESS("FAQ inicial criado."))
 
         self.stdout.write(self.style.SUCCESS("Seed concluído."))

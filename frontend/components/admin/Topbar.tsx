@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { Bell, Search } from "lucide-react";
 import { api, resultsOf } from "@/lib/api";
@@ -17,12 +17,38 @@ export default function Topbar({ title }: { title: string }) {
   const [unread, setUnread] = useState(0);
   const [bellOpen, setBellOpen] = useState(false);
 
-  useEffect(() => {
-    api
-      .get<{ count: number }>("/notifications/unread-count/")
-      .then((r) => setUnread(r.count))
-      .catch(() => {});
+  const pullNotifs = useCallback(async () => {
+    try {
+      const [countRes, list] = await Promise.all([
+        api.get<{ count: number; latest_id?: number }>(
+          "/notifications/unread-count",
+        ),
+        api.get<{ results: AppNotification[] } | AppNotification[]>(
+          "/notifications",
+        ),
+      ]);
+      setUnread(countRes.count);
+      setNotifs(resultsOf(list));
+    } catch {
+      /* sessão caiu — o shell cuida do login */
+    }
   }, []);
+
+  useEffect(() => {
+    void pullNotifs();
+    const t = window.setInterval(() => void pullNotifs(), 4000);
+    const onFocus = () => void pullNotifs();
+    const onVis = () => {
+      if (document.visibilityState === "visible") void pullNotifs();
+    };
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onVis);
+    return () => {
+      window.clearInterval(t);
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onVis);
+    };
+  }, [pullNotifs]);
 
   useEffect(() => {
     if (!query || query.length < 2) {
@@ -49,15 +75,19 @@ export default function Topbar({ title }: { title: string }) {
 
   async function openBell() {
     setBellOpen((v) => !v);
-    if (!bellOpen) {
-      try {
-        const data = await api.get<
-          { results: AppNotification[] } | AppNotification[]
-        >("/notifications/");
-        setNotifs(resultsOf(data));
-      } catch {
-        /* ignore */
-      }
+    void pullNotifs();
+  }
+
+  async function markRead(n: AppNotification) {
+    if (n.is_read) return;
+    setUnread((v) => Math.max(0, v - 1));
+    setNotifs((list) =>
+      list.map((x) => (x.id === n.id ? { ...x, is_read: true } : x)),
+    );
+    try {
+      await api.patch(`/notifications/${n.id}/`, { is_read: true });
+    } catch {
+      /* o contador volta no próximo refresh */
     }
   }
 
@@ -137,12 +167,21 @@ export default function Topbar({ title }: { title: string }) {
                 <span className="text-sm font-semibold text-white">
                   Notificações
                 </span>
-                <button
-                  onClick={markAllRead}
-                  className="text-xs text-gold hover:underline"
-                >
-                  Marcar todas
-                </button>
+                <div className="flex items-center gap-3">
+                  <Link
+                    href="/admin/notificacoes"
+                    onClick={() => setBellOpen(false)}
+                    className="text-xs text-white/50 hover:text-gold"
+                  >
+                    Ver todas
+                  </Link>
+                  <button
+                    onClick={markAllRead}
+                    className="text-xs text-gold hover:underline"
+                  >
+                    Marcar todas
+                  </button>
+                </div>
               </div>
               <div className="max-h-72 overflow-y-auto">
                 {notifs.length === 0 && (
@@ -154,7 +193,10 @@ export default function Topbar({ title }: { title: string }) {
                   <Link
                     key={n.id}
                     href={n.link || "/admin"}
-                    onClick={() => setBellOpen(false)}
+                    onClick={() => {
+                      setBellOpen(false);
+                      void markRead(n);
+                    }}
                     className={`block border-b border-white/5 px-4 py-3 hover:bg-white/5 ${
                       n.is_read ? "opacity-60" : ""
                     }`}

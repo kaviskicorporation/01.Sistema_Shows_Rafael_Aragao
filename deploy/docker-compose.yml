@@ -38,6 +38,28 @@ services:
     networks:
       - internal
 
+  imap:
+    build:
+      context: ../backend
+      dockerfile: ../deploy/Dockerfile.backend
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      DJANGO_DEBUG: "0"
+      AUTH_COOKIE_SECURE: "1"
+      DATABASE_URL: postgres://${POSTGRES_USER:-aragao}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-aragao}
+      FRONTEND_ORIGIN: ${FRONTEND_ORIGIN:-https://aragao.kaviskicorporation.com.br}
+      DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:-aragao.kaviskicorporation.com.br,localhost,127.0.0.1,backend}
+    command: python manage.py listen_imap
+    volumes:
+      - media:/app/media
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - internal
+
   frontend:
     build:
       context: ..

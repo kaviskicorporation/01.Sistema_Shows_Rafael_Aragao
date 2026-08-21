@@ -133,6 +133,14 @@ class SiteConfig(models.Model):
         max_length=80, blank=True, default="Patrocinadores"
     )
 
+    # Seção FAQ na home (abaixo do formulário)
+    faq_eyebrow = models.CharField(
+        max_length=80, blank=True, default="Dúvidas"
+    )
+    faq_title = models.CharField(
+        max_length=120, blank=True, default="Perguntas frequentes"
+    )
+
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
@@ -182,6 +190,28 @@ class Sponsor(models.Model):
         return self.name
 
 
+class FaqItem(models.Model):
+    """Pergunta e resposta do FAQ público — 100% gerenciado pelo /admin."""
+
+    question = models.CharField(max_length=300)
+    answer = models.TextField(
+        help_text="Texto da resposta. URLs viram link; HTML <a href> também vale."
+    )
+    icon = models.CharField(max_length=40, default="help-circle", blank=True)
+    order = models.PositiveIntegerField(default=0)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["order", "id"]
+        verbose_name = "Pergunta do FAQ"
+        verbose_name_plural = "FAQ"
+
+    def __str__(self):
+        return self.question[:80]
+
+
 class AuditLog(models.Model):
     class Action(models.TextChoices):
         CREATE = "create", "Criação"
@@ -211,9 +241,77 @@ class AuditLog(models.Model):
         return f"{self.get_action_display()} {self.model_name} #{self.object_id}"
 
 
-class Notification(models.Model):
-    """Internal bell notifications (e.g. novos leads)."""
+class EmailSettings(models.Model):
+    """Singleton: override SMTP/IMAP do cliente + To da equipe.
 
+    Pacote vazio = fallback secreto do .env. Senhas nunca saem na API.
+    """
+
+    smtp_host = models.CharField(max_length=200, blank=True)
+    smtp_port = models.PositiveIntegerField(null=True, blank=True)
+    smtp_user = models.CharField(max_length=200, blank=True)
+    smtp_password = models.CharField(max_length=300, blank=True)
+    smtp_from = models.CharField(max_length=200, blank=True)
+
+    imap_host = models.CharField(max_length=200, blank=True)
+    imap_port = models.PositiveIntegerField(null=True, blank=True)
+    imap_user = models.CharField(max_length=200, blank=True)
+    imap_password = models.CharField(max_length=300, blank=True)
+    imap_ssl = models.BooleanField(default=True)
+    imap_allow_self_signed = models.BooleanField(default=True)
+
+    team_to = models.EmailField(blank=True)
+
+    imap_uidvalidity = models.BigIntegerField(null=True, blank=True)
+    imap_last_uid = models.BigIntegerField(default=0)
+
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Configuração de e-mail"
+
+    def __str__(self):
+        return "E-mails e alertas"
+
+    @classmethod
+    def load(cls):
+        obj, _ = cls.objects.get_or_create(pk=1)
+        return obj
+
+    def save(self, *args, **kwargs):
+        self.pk = 1
+        super().save(*args, **kwargs)
+
+    def smtp_package_complete(self) -> bool:
+        return bool(
+            self.smtp_host.strip()
+            and self.smtp_port
+            and self.smtp_user.strip()
+            and self.smtp_password
+            and self.smtp_from.strip()
+        )
+
+    def imap_package_complete(self) -> bool:
+        return bool(
+            self.imap_host.strip()
+            and self.imap_port
+            and self.imap_user.strip()
+            and self.imap_password
+        )
+
+
+class Notification(models.Model):
+    """Sino do /admin — uma linha por usuário (não é o chat do CRM)."""
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.CASCADE,
+        related_name="notifications",
+    )
+    event_type = models.CharField(max_length=80, blank=True, db_index=True)
+    dedupe_key = models.CharField(max_length=180, blank=True)
     title = models.CharField(max_length=160)
     message = models.CharField(max_length=300, blank=True)
     link = models.CharField(max_length=200, blank=True)
@@ -222,6 +320,92 @@ class Notification(models.Model):
 
     class Meta:
         ordering = ["-created_at"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["user", "event_type", "dedupe_key"],
+                name="uniq_notif_user_event_dedupe",
+            )
+        ]
 
     def __str__(self):
         return self.title
+
+
+class NotificationPreference(models.Model):
+    """Matriz: quem recebe in-app (por perfil) e se dispara e-mail externo."""
+
+    event_type = models.CharField(max_length=80, unique=True)
+    notify_admin = models.BooleanField(default=True)
+    notify_gerente = models.BooleanField(default=False)
+    notify_comercial = models.BooleanField(default=False)
+    notify_visualizador = models.BooleanField(default=False)
+    send_email = models.BooleanField(default=False)
+    email_recipient_ids = models.JSONField(default=list, blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["event_type"]
+
+    def __str__(self):
+        return self.event_type
+
+
+class NotificationRecipient(models.Model):
+    """Endereços que recebem avisos da plataforma (não é a mailbox SMTP/IMAP)."""
+
+    email = models.EmailField(unique=True)
+    is_primary = models.BooleanField(default=False)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-is_primary", "id"]
+
+    def __str__(self):
+        return self.email
+
+    def save(self, *args, **kwargs):
+        self.email = (self.email or "").strip().lower()
+        super().save(*args, **kwargs)
+        if self.is_primary:
+            type(self).objects.exclude(pk=self.pk).filter(is_primary=True).update(
+                is_primary=False
+            )
+
+
+class NotificationTemplate(models.Model):
+    """Assunto/corpo personalizados. is_custom=False usa o padrão do código."""
+
+    event_type = models.CharField(max_length=80, unique=True)
+    subject = models.CharField(max_length=200, blank=True)
+    body = models.TextField(blank=True)
+    is_custom = models.BooleanField(default=False)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return self.event_type
+
+
+class NotificationDispatchLog(models.Model):
+    """Auditoria do disparo — sem credenciais."""
+
+    event_type = models.CharField(max_length=80, db_index=True)
+    dedupe_key = models.CharField(max_length=180, blank=True)
+    actor = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="notification_dispatches",
+    )
+    in_app_user_ids = models.JSONField(default=list, blank=True)
+    email_to = models.JSONField(default=list, blank=True)
+    email_sent = models.BooleanField(default=False)
+    error = models.CharField(max_length=400, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.event_type} @ {self.created_at}"

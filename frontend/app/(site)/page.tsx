@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { getPublicEvents, getSiteConfig } from "@/lib/server";
+import { getPublicEvents, getPublicFaqs, getSiteConfig } from "@/lib/server";
 import type { SiteConfig } from "@/lib/types";
 import Navbar from "@/components/public/Navbar";
 import Ambient from "@/components/public/Ambient";
@@ -9,6 +9,7 @@ import About from "@/components/public/About";
 import VideoSection from "@/components/public/VideoSection";
 import Sponsors from "@/components/public/Sponsors";
 import ContactForm from "@/components/public/ContactForm";
+import FaqSection from "@/components/public/FaqSection";
 import Footer from "@/components/public/Footer";
 
 const FALLBACK_CONFIG: SiteConfig = {
@@ -74,6 +75,8 @@ const FALLBACK_CONFIG: SiteConfig = {
   contact_bg_image_url: "/images/rei-dos-peao.png",
   contact_bg_image_display: "/images/rei-dos-peao.png",
   sponsors_title: "Patrocinadores",
+  faq_eyebrow: "Dúvidas",
+  faq_title: "Perguntas frequentes",
   sponsors: [],
 };
 
@@ -105,9 +108,10 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function HomePage() {
-  const [events, configData] = await Promise.all([
+  const [events, configData, faqs] = await Promise.all([
     getPublicEvents(),
     getSiteConfig(),
+    getPublicFaqs(),
   ]);
   const config = configData || FALLBACK_CONFIG;
 
@@ -133,6 +137,11 @@ export default async function HomePage() {
           sponsors={config.sponsors || []}
         />
         <ContactForm config={config} />
+        <FaqSection
+          eyebrow={config.faq_eyebrow}
+          title={config.faq_title}
+          items={faqs}
+        />
         <Footer config={config} />
       </div>
     </main>

@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, Fragment } from "react";
+import { useCallback, useEffect, useMemo, useState, Fragment, useRef } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   Plus,
   Copy,
@@ -12,10 +13,11 @@ import {
   Search,
   Ticket,
   Save,
+  X,
 } from "lucide-react";
 import Topbar from "@/components/admin/Topbar";
 import AdminHero from "@/components/admin/AdminHero";
-import { api, resultsOf } from "@/lib/api";
+import { api, ApiError, resultsOf } from "@/lib/api";
 import type { EventItem, EventStatus } from "@/lib/types";
 import { dayOf, formatFullDate, formatTime, groupByMonth, monthShort, MONTHS_PT } from "@/lib/format";
 import { useAuth } from "@/lib/auth";
@@ -42,7 +44,7 @@ const EMPTY_FORM = {
   venue: "",
   city: "",
   state: "PR",
-  tickets_link: "",
+  tickets_link: "https://www.sympla.com.br/",
   external_link: "",
   description: "",
   banner_url: "",
@@ -58,6 +60,9 @@ const EMPTY_FORM = {
 export default function EventosPage() {
   const { canWrite } = useAuth();
   const writable = canWrite("events");
+  const searchParams = useSearchParams();
+  const handledQuery = useRef("");
+  const [missingEvent, setMissingEvent] = useState(false);
   const [events, setEvents] = useState<EventItem[]>([]);
   const [status, setStatus] = useState("");
   const [search, setSearch] = useState("");
@@ -68,6 +73,9 @@ export default function EventosPage() {
   const [editing, setEditing] = useState<EventItem | null>(null);
   const [form, setForm] = useState(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
+  const [formError, setFormError] = useState("");
+  const [flash, setFlash] = useState("");
+  const [flashErr, setFlashErr] = useState("");
   const [calMonth, setCalMonth] = useState(() => {
     const d = new Date();
     return { y: d.getFullYear(), m: d.getMonth() };
@@ -89,14 +97,30 @@ export default function EventosPage() {
     load().catch(() => {});
   }, [load]);
 
+  useEffect(() => {
+    const id = Number(searchParams.get("id") || "");
+    if (!id || !events.length) return;
+    if (handledQuery.current === String(id)) return;
+    handledQuery.current = String(id);
+    const found = events.find((item) => item.id === id);
+    if (found) {
+      setMissingEvent(false);
+      openEdit(found);
+      return;
+    }
+    setMissingEvent(true);
+  }, [events, searchParams]);
+
   function openCreate() {
     setEditing(null);
     setForm(EMPTY_FORM);
+    setFormError("");
     setModal("create");
   }
 
   function openEdit(e: EventItem) {
     setEditing(e);
+    setFormError("");
     setForm({
       name: e.name,
       date: e.date,
@@ -119,12 +143,47 @@ export default function EventosPage() {
     setModal("edit");
   }
 
+  function closeModal() {
+    if (saving) return;
+    setModal(null);
+    setFormError("");
+  }
+
+  useEffect(() => {
+    if (!modal) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") closeModal();
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [modal, saving]);
+
+  useEffect(() => {
+    if (!flash && !flashErr) return;
+    const t = window.setTimeout(() => {
+      setFlash("");
+      setFlashErr("");
+    }, 4200);
+    return () => window.clearTimeout(t);
+  }, [flash, flashErr]);
+
   async function save() {
+    if (!form.name.trim() || !form.date || !form.city.trim()) {
+      setFormError("Preencha nome, data e cidade para salvar o evento.");
+      return;
+    }
     setSaving(true);
+    setFormError("");
     try {
       const payload = {
         ...form,
-        time: form.time ? `${form.time}:00` : null,
+        name: form.name.trim(),
+        city: form.city.trim(),
+        venue: form.venue.trim(),
+        time: form.time ? `${form.time.slice(0, 5)}:00` : null,
+        tickets_link: normalizeHttpUrl(form.tickets_link),
+        external_link: normalizeHttpUrl(form.external_link),
+        banner_url: form.banner_url.trim(),
       };
       if (editing) {
         await api.patch(`/events/${editing.id}/`, payload);
@@ -132,21 +191,37 @@ export default function EventosPage() {
         await api.post("/events/", payload);
       }
       setModal(null);
+      setFlashErr("");
+      setFlash(
+        editing ? "Evento atualizado com sucesso." : "Evento criado com sucesso."
+      );
       await load();
+    } catch (err) {
+      setFormError(formatApiError(err));
     } finally {
       setSaving(false);
     }
   }
 
   async function duplicate(e: EventItem) {
-    await api.post(`/events/${e.id}/duplicate/`);
-    await load();
+    try {
+      await api.post(`/events/${e.id}/duplicate/`);
+      setFlash("Evento duplicado com sucesso.");
+      await load();
+    } catch (err) {
+      setFlashErr(formatApiError(err));
+    }
   }
 
   async function remove(e: EventItem) {
     if (!confirm(`Excluir "${e.name} — ${e.city}"?`)) return;
-    await api.delete(`/events/${e.id}/`);
-    await load();
+    try {
+      await api.delete(`/events/${e.id}/`);
+      setFlash("Evento excluído com sucesso.");
+      await load();
+    } catch (err) {
+      setFlashErr(formatApiError(err));
+    }
   }
 
   async function bulkStatus(newStatus: EventStatus) {
@@ -187,6 +262,22 @@ export default function EventosPage() {
     <>
       <Topbar title="Eventos" />
       <div className="space-y-5 p-6">
+        {missingEvent && (
+          <p className="rounded-xl border border-amber-400/30 bg-amber-400/10 px-4 py-2.5 text-sm text-amber-100">
+            Esse evento não existe mais. A lista abaixo continua disponível.
+          </p>
+        )}
+        {(flash || flashErr) && (
+          <p
+            className={`rounded-xl border px-4 py-2.5 text-sm ${
+              flashErr
+                ? "border-red-400/30 bg-red-500/10 text-red-100"
+                : "border-emerald-400/30 bg-emerald-500/10 text-emerald-100"
+            }`}
+          >
+            {flashErr || flash}
+          </p>
+        )}
         <AdminHero
           icon={CalendarDays}
           title="Agenda de eventos"
@@ -526,248 +617,307 @@ export default function EventosPage() {
 
       {/* Modal */}
       {modal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-          <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto admin-glass p-6">
-            <h2 className="font-display text-xl font-bold">
-              {editing ? "Editar evento" : "Novo evento"}
-            </h2>
-            <div className="mt-5 grid gap-4 sm:grid-cols-2">
-              <Field label="Nome">
-                <input
-                  value={form.name}
-                  onChange={(e) => setForm({ ...form, name: e.target.value })}
-                  className={inputCls}
-                />
-              </Field>
-              <Field label="Status">
-                <ThemedSelect
-                  value={form.status}
-                  onChange={(v) =>
-                    setForm({ ...form, status: v as EventStatus })
-                  }
-                  options={STATUSES.filter((s) => s.value).map((s) => ({
-                    value: s.value,
-                    label: s.label,
-                  }))}
-                />
-              </Field>
-              <Field label="Data">
-                <input
-                  type="date"
-                  value={form.date}
-                  onChange={(e) => setForm({ ...form, date: e.target.value })}
-                  className={inputCls}
-                />
-              </Field>
-              <Field label="Horário">
-                <input
-                  type="time"
-                  value={form.time}
-                  onChange={(e) => setForm({ ...form, time: e.target.value })}
-                  className={inputCls}
-                />
-              </Field>
-              <Field label="Cidade">
-                <input
-                  value={form.city}
-                  onChange={(e) => setForm({ ...form, city: e.target.value })}
-                  className={inputCls}
-                />
-              </Field>
-              <Field label="Estado">
-                <input
-                  maxLength={2}
-                  value={form.state}
-                  onChange={(e) =>
-                    setForm({ ...form, state: e.target.value.toUpperCase() })
-                  }
-                  className={inputCls}
-                />
-              </Field>
-              <Field label="Local">
-                <input
-                  value={form.venue}
-                  onChange={(e) => setForm({ ...form, venue: e.target.value })}
-                  className={inputCls}
-                />
-              </Field>
-              <Field label="Banner do topo (opcional)">
-                <input
-                  value={form.banner_url}
-                  onChange={(e) =>
-                    setForm({ ...form, banner_url: e.target.value })
-                  }
-                  className={inputCls}
-                  placeholder="Vazio = textura suave (recomendado)"
-                />
-              </Field>
-              <p className="sm:col-span-2 -mt-2 text-xs text-white/35">
-                Deixe o banner vazio para usar a textura suave fixa no topo. Só
-                preencha se quiser uma imagem específica neste show.
-              </p>
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-3 sm:p-4"
+          onClick={closeModal}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="event-modal-title"
+            onClick={(e) => e.stopPropagation()}
+            className="admin-glass relative flex max-h-[min(90dvh,860px)] w-full max-w-2xl flex-col"
+          >
+            <div className="relative z-[1] flex shrink-0 items-start justify-between gap-3 border-b border-white/10 px-5 py-4 sm:px-6">
+              <div className="min-w-0">
+                <h2
+                  id="event-modal-title"
+                  className="font-display text-xl font-bold"
+                >
+                  {editing ? "Editar evento" : "Novo evento"}
+                </h2>
+                {editing && (
+                  <p className="mt-1 truncate text-xs text-white/30">
+                    {formatFullDate(editing.date)} · slug: {editing.slug}
+                  </p>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={closeModal}
+                className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-white/10 text-white/60 transition hover:bg-white/10 hover:text-white"
+                title="Fechar"
+                aria-label="Fechar"
+              >
+                <X size={14} />
+              </button>
+            </div>
 
-              <div className="sm:col-span-2">
-                <span className="mb-2 block text-xs text-white/50">
-                  Fundo do card de detalhes
-                </span>
-                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                  {CARD_BG_OPTIONS.map((opt) => {
-                    const active = form.card_bg_preset === opt.value;
-                    return (
-                      <button
-                        key={opt.value}
-                        type="button"
-                        onClick={() =>
-                          setForm({
-                            ...form,
-                            card_bg_preset: opt.value,
-                          })
-                        }
-                        className={`overflow-hidden rounded-xl border text-left transition ${
-                          active
-                            ? "border-gold ring-1 ring-gold/40"
-                            : "border-white/10 hover:border-white/25"
-                        }`}
-                      >
-                        <div
-                          className="h-14 w-full"
-                          style={presetSwatchStyle(
-                            opt.value,
-                            form.card_bg_color
-                          )}
-                        />
-                        <div className="px-2.5 py-2">
-                          <p className="text-xs font-semibold text-white">
-                            {opt.label}
-                          </p>
-                          <p className="text-[10px] text-white/40">{opt.hint}</p>
-                        </div>
-                      </button>
-                    );
-                  })}
+            <div className="relative z-[1] min-h-0 flex-1 overflow-y-auto thin-scroll px-5 py-5 [scrollbar-gutter:stable] sm:px-6">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Field label="Nome">
+                  <input
+                    value={form.name}
+                    onChange={(e) => setForm({ ...form, name: e.target.value })}
+                    className={inputCls}
+                  />
+                </Field>
+                <Field label="Status">
+                  <ThemedSelect
+                    value={form.status}
+                    onChange={(v) =>
+                      setForm({ ...form, status: v as EventStatus })
+                    }
+                    options={STATUSES.filter((s) => s.value).map((s) => ({
+                      value: s.value,
+                      label: s.label,
+                    }))}
+                  />
+                </Field>
+                <Field label="Data">
+                  <input
+                    type="date"
+                    value={form.date}
+                    onChange={(e) => setForm({ ...form, date: e.target.value })}
+                    className={inputCls}
+                  />
+                </Field>
+                <Field label="Horário">
+                  <input
+                    type="time"
+                    value={form.time}
+                    onChange={(e) => setForm({ ...form, time: e.target.value })}
+                    className={inputCls}
+                  />
+                </Field>
+                <Field label="Cidade">
+                  <input
+                    value={form.city}
+                    onChange={(e) => setForm({ ...form, city: e.target.value })}
+                    className={inputCls}
+                  />
+                </Field>
+                <Field label="Estado">
+                  <input
+                    maxLength={2}
+                    value={form.state}
+                    onChange={(e) =>
+                      setForm({ ...form, state: e.target.value.toUpperCase() })
+                    }
+                    className={inputCls}
+                  />
+                </Field>
+                <Field label="Local">
+                  <input
+                    value={form.venue}
+                    onChange={(e) => setForm({ ...form, venue: e.target.value })}
+                    className={inputCls}
+                  />
+                </Field>
+                <div className="sm:col-span-2">
+                  <Field label="Link para compra de ingressos">
+                    <input
+                      value={form.tickets_link}
+                      onChange={(e) =>
+                        setForm({ ...form, tickets_link: e.target.value })
+                      }
+                      className={inputCls}
+                      placeholder="https://site-de-ingressos.com/evento/..."
+                      inputMode="url"
+                      autoComplete="off"
+                    />
+                  </Field>
+                  <p className="-mt-1 text-xs text-white/35">
+                    Usado no botão Comprar ingressos da agenda e da página do
+                    show. Deixe vazio para ocultar o botão.
+                  </p>
+                </div>
+                <Field label="Link para mais informações">
+                  <input
+                    value={form.external_link}
+                    onChange={(e) =>
+                      setForm({ ...form, external_link: e.target.value })
+                    }
+                    className={inputCls}
+                    placeholder="https://..."
+                    inputMode="url"
+                    autoComplete="off"
+                  />
+                </Field>
+                <Field label="Banner do topo (opcional)">
+                  <input
+                    value={form.banner_url}
+                    onChange={(e) =>
+                      setForm({ ...form, banner_url: e.target.value })
+                    }
+                    className={inputCls}
+                    placeholder="Vazio = textura suave (recomendado)"
+                  />
+                </Field>
+                <p className="sm:col-span-2 -mt-2 text-xs text-white/35">
+                  Deixe o banner vazio para usar a textura suave fixa no topo. Só
+                  preencha se quiser uma imagem específica neste show.
+                </p>
+
+                <div className="sm:col-span-2">
+                  <span className="mb-2 block text-xs text-white/50">
+                    Fundo do card de detalhes
+                  </span>
+                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                    {CARD_BG_OPTIONS.map((opt) => {
+                      const active = form.card_bg_preset === opt.value;
+                      return (
+                        <button
+                          key={opt.value}
+                          type="button"
+                          onClick={() =>
+                            setForm({
+                              ...form,
+                              card_bg_preset: opt.value,
+                            })
+                          }
+                          className={`overflow-hidden rounded-xl border text-left transition ${
+                            active
+                              ? "border-gold ring-1 ring-gold/40"
+                              : "border-white/10 hover:border-white/25"
+                          }`}
+                        >
+                          <div
+                            className="h-14 w-full"
+                            style={presetSwatchStyle(
+                              opt.value,
+                              form.card_bg_color
+                            )}
+                          />
+                          <div className="px-2.5 py-2">
+                            <p className="text-xs font-semibold text-white">
+                              {opt.label}
+                            </p>
+                            <p className="text-[10px] text-white/40">
+                              {opt.hint}
+                            </p>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {form.card_bg_preset === "solid" && (
+                  <Field label="Cor do card">
+                    <input
+                      type="color"
+                      value={form.card_bg_color || "#121212"}
+                      onChange={(e) =>
+                        setForm({ ...form, card_bg_color: e.target.value })
+                      }
+                      className="h-10 w-full cursor-pointer rounded border border-white/10"
+                    />
+                  </Field>
+                )}
+                {form.card_bg_preset === "custom_image" && (
+                  <Field label="URL da imagem do card">
+                    <input
+                      value={form.card_bg_image_url}
+                      onChange={(e) =>
+                        setForm({ ...form, card_bg_image_url: e.target.value })
+                      }
+                      className={inputCls}
+                      placeholder="/images/... ou https://..."
+                    />
+                  </Field>
+                )}
+
+                <Field label="Ocultação">
+                  <ThemedSelect
+                    value={form.hide_override}
+                    onChange={(v) => setForm({ ...form, hide_override: v })}
+                    options={[
+                      { value: "global", label: "Regra global" },
+                      { value: "immediate", label: "Imediatamente" },
+                      { value: "next_day", label: "1 dia depois" },
+                      { value: "days_after", label: "X dias depois" },
+                      { value: "never", label: "Nunca ocultar" },
+                    ]}
+                  />
+                </Field>
+                {form.hide_override === "days_after" && (
+                  <Field label="Dias após">
+                    <input
+                      type="number"
+                      min={1}
+                      value={form.hide_days_after}
+                      onChange={(e) =>
+                        setForm({
+                          ...form,
+                          hide_days_after: Number(e.target.value),
+                        })
+                      }
+                      className={inputCls}
+                    />
+                  </Field>
+                )}
+                <div className="sm:col-span-2">
+                  <Field label="Descrição">
+                    <textarea
+                      rows={3}
+                      value={form.description}
+                      onChange={(e) =>
+                        setForm({ ...form, description: e.target.value })
+                      }
+                      className={inputCls}
+                    />
+                  </Field>
+                </div>
+                <div className="sm:col-span-2">
+                  <Field label="Observações internas">
+                    <textarea
+                      rows={2}
+                      value={form.internal_notes}
+                      onChange={(e) =>
+                        setForm({ ...form, internal_notes: e.target.value })
+                      }
+                      className={inputCls}
+                    />
+                  </Field>
                 </div>
               </div>
-
-              {form.card_bg_preset === "solid" && (
-                <Field label="Cor do card">
-                  <input
-                    type="color"
-                    value={form.card_bg_color || "#121212"}
-                    onChange={(e) =>
-                      setForm({ ...form, card_bg_color: e.target.value })
-                    }
-                    className="h-10 w-full cursor-pointer rounded border border-white/10"
-                  />
-                </Field>
-              )}
-              {form.card_bg_preset === "custom_image" && (
-                <Field label="URL da imagem do card">
-                  <input
-                    value={form.card_bg_image_url}
-                    onChange={(e) =>
-                      setForm({ ...form, card_bg_image_url: e.target.value })
-                    }
-                    className={inputCls}
-                    placeholder="/images/... ou https://..."
-                  />
-                </Field>
-              )}
-
-              <Field label="Link de ingressos">
-                <input
-                  value={form.tickets_link}
-                  onChange={(e) =>
-                    setForm({ ...form, tickets_link: e.target.value })
-                  }
-                  className={inputCls}
-                />
-              </Field>
-              <Field label="Link externo">
-                <input
-                  value={form.external_link}
-                  onChange={(e) =>
-                    setForm({ ...form, external_link: e.target.value })
-                  }
-                  className={inputCls}
-                />
-              </Field>
-              <Field label="Ocultação">
-                <ThemedSelect
-                  value={form.hide_override}
-                  onChange={(v) => setForm({ ...form, hide_override: v })}
-                  options={[
-                    { value: "global", label: "Regra global" },
-                    { value: "immediate", label: "Imediatamente" },
-                    { value: "next_day", label: "1 dia depois" },
-                    { value: "days_after", label: "X dias depois" },
-                    { value: "never", label: "Nunca ocultar" },
-                  ]}
-                />
-              </Field>
-              {form.hide_override === "days_after" && (
-                <Field label="Dias após">
-                  <input
-                    type="number"
-                    min={1}
-                    value={form.hide_days_after}
-                    onChange={(e) =>
-                      setForm({
-                        ...form,
-                        hide_days_after: Number(e.target.value),
-                      })
-                    }
-                    className={inputCls}
-                  />
-                </Field>
-              )}
-              <div className="sm:col-span-2">
-                <Field label="Descrição">
-                  <textarea
-                    rows={3}
-                    value={form.description}
-                    onChange={(e) =>
-                      setForm({ ...form, description: e.target.value })
-                    }
-                    className={inputCls}
-                  />
-                </Field>
-              </div>
-              <div className="sm:col-span-2">
-                <Field label="Observações internas">
-                  <textarea
-                    rows={2}
-                    value={form.internal_notes}
-                    onChange={(e) =>
-                      setForm({ ...form, internal_notes: e.target.value })
-                    }
-                    className={inputCls}
-                  />
-                </Field>
-              </div>
             </div>
-            <div className="mt-6 flex justify-end gap-3">
-              <button
-                onClick={() => setModal(null)}
-                className="rounded-full border border-white/15 px-5 py-2 text-sm"
-              >
-                Cancelar
-              </button>
-              {writable && (
+
+            <div className="relative z-[1] shrink-0 border-t border-white/10 px-5 py-4 sm:px-6">
+              {formError && (
+                <p className="mb-3 text-sm text-red-300">{formError}</p>
+              )}
+              <div className="flex justify-end gap-3">
                 <button
-                  onClick={save}
-                  disabled={saving || !form.date || !form.city}
-                  className="inline-flex items-center gap-2 rounded-full bg-gold px-5 py-2 text-sm font-semibold text-ink disabled:opacity-50"
+                  type="button"
+                  onClick={closeModal}
+                  className="rounded-full border border-white/15 px-5 py-2 text-sm"
                 >
-                  <Save size={15} />
-                  {saving ? "Salvando..." : "Salvar"}
+                  Cancelar
                 </button>
-              )}
+                {writable && (
+                  <button
+                    type="button"
+                    onClick={save}
+                    disabled={
+                      saving ||
+                      !form.name.trim() ||
+                      !form.date ||
+                      !form.city.trim()
+                    }
+                    className="inline-flex items-center gap-2 rounded-full bg-gold px-5 py-2 text-sm font-semibold text-ink disabled:opacity-50"
+                  >
+                    <Save size={15} />
+                    {saving
+                      ? "Salvando..."
+                      : editing
+                        ? "Salvar alterações"
+                        : "Salvar evento"}
+                  </button>
+                )}
+              </div>
             </div>
-            {editing && (
-              <p className="mt-3 text-xs text-white/30">
-                {formatFullDate(editing.date)} · slug: {editing.slug}
-              </p>
-            )}
           </div>
         </div>
       )}
@@ -777,6 +927,32 @@ export default function EventosPage() {
 
 const inputCls =
   "w-full rounded-lg border border-white/10 bg-ink px-3 py-2 text-sm outline-none focus:border-gold";
+
+function normalizeHttpUrl(raw: string): string {
+  const v = (raw || "").trim();
+  if (!v) return "";
+  if (/^(javascript|data|vbscript):/i.test(v)) return "";
+  if (/^https?:\/\//i.test(v)) return v;
+  return `https://${v}`;
+}
+
+function formatApiError(err: unknown): string {
+  if (err instanceof ApiError) {
+    if (err.data && typeof err.data === "object") {
+      const parts: string[] = [];
+      for (const [key, val] of Object.entries(
+        err.data as Record<string, unknown>
+      )) {
+        if (key === "detail") continue;
+        const msg = Array.isArray(val) ? val.map(String).join(" ") : String(val);
+        if (msg) parts.push(msg);
+      }
+      if (parts.length) return parts.join(" ");
+    }
+    return err.message || "Não foi possível salvar o evento.";
+  }
+  return "Não foi possível salvar o evento.";
+}
 
 function Field({
   label,

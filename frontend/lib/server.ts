@@ -1,4 +1,4 @@
-import type { PublicEvent, SiteConfig, Paginated } from "./types";
+import type { FaqItem, PublicEvent, SiteConfig, Paginated } from "./types";
 
 const BACKEND = process.env.BACKEND_URL || "http://localhost:8000";
 
@@ -28,4 +28,11 @@ export async function getPublicEvent(slug: string): Promise<PublicEvent | null> 
 
 export async function getSiteConfig(): Promise<SiteConfig | null> {
   return serverGet<SiteConfig>(`/api/site-config`);
+}
+
+export async function getPublicFaqs(): Promise<FaqItem[]> {
+  const data = await serverGet<Paginated<FaqItem> | FaqItem[]>(`/api/faqs`);
+  if (!data) return [];
+  const list = Array.isArray(data) ? data : data.results;
+  return list.filter((item) => item.is_active !== false);
 }

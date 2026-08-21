@@ -18,6 +18,21 @@ from .serializers import (
 )
 
 
+def event_notify_payload(instance: Event) -> dict:
+    city = (instance.city or "").strip()
+    state = (instance.state or "").strip()
+    city_label = f"{city}/{state}" if city and state else city or state
+    date_s = instance.date.strftime("%d/%m/%Y") if instance.date else ""
+    time_s = instance.time.strftime("%H:%M") if instance.time else ""
+    return {
+        "eventName": instance.name or "",
+        "city": city_label,
+        "eventDate": date_s,
+        "eventTime": time_s,
+        "venue": instance.venue or "",
+    }
+
+
 class EventViewSet(viewsets.ModelViewSet):
     queryset = Event.objects.all().prefetch_related("gallery", "sessions")
     serializer_class = EventSerializer
@@ -49,14 +64,46 @@ class EventViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         instance = serializer.save()
         log_action(self.request.user, AuditLog.Action.CREATE, instance)
+        from core.notifications import emit_safe
+        from core.notifications.events import EVENT_CREATED
+
+        emit_safe(
+            EVENT_CREATED,
+            actor=self.request.user,
+            payload=event_notify_payload(instance),
+            dedupe_key=f"event:{instance.pk}:created",
+            link=f"/admin/eventos?id={instance.pk}",
+        )
 
     def perform_update(self, serializer):
         instance = serializer.save()
         log_action(self.request.user, AuditLog.Action.UPDATE, instance)
+        from core.notifications import emit_safe
+        from core.notifications.events import EVENT_UPDATED
+
+        emit_safe(
+            EVENT_UPDATED,
+            actor=self.request.user,
+            payload=event_notify_payload(instance),
+            dedupe_key=f"event:{instance.pk}:updated:{instance.updated_at.timestamp() if getattr(instance, 'updated_at', None) else instance.pk}",
+            link=f"/admin/eventos?id={instance.pk}",
+        )
 
     def perform_destroy(self, instance):
+        payload = event_notify_payload(instance)
+        pk = instance.pk
         log_action(self.request.user, AuditLog.Action.DELETE, instance)
         instance.delete()
+        from core.notifications import emit_safe
+        from core.notifications.events import EVENT_DELETED
+
+        emit_safe(
+            EVENT_DELETED,
+            actor=self.request.user,
+            payload=payload,
+            dedupe_key=f"event:{pk}:deleted",
+            link="/admin/eventos",
+        )
 
     @action(detail=True, methods=["post"])
     def duplicate(self, request, pk=None):
@@ -68,6 +115,16 @@ class EventViewSet(viewsets.ModelViewSet):
         clone.status = Event.Status.RASCUNHO
         clone.save()
         log_action(request.user, AuditLog.Action.CREATE, clone, {"duplicated_from": event.pk})
+        from core.notifications import emit_safe
+        from core.notifications.events import EVENT_CREATED
+
+        emit_safe(
+            EVENT_CREATED,
+            actor=request.user,
+            payload=event_notify_payload(clone),
+            dedupe_key=f"event:{clone.pk}:created",
+            link=f"/admin/eventos?id={clone.pk}",
+        )
         return Response(
             self.get_serializer(clone).data, status=status.HTTP_201_CREATED
         )
@@ -86,6 +143,16 @@ class EventViewSet(viewsets.ModelViewSet):
         session.status = Event.Status.RASCUNHO
         session.save()
         log_action(request.user, AuditLog.Action.CREATE, session, {"session_of": parent.pk})
+        from core.notifications import emit_safe
+        from core.notifications.events import EVENT_CREATED
+
+        emit_safe(
+            EVENT_CREATED,
+            actor=request.user,
+            payload=event_notify_payload(session),
+            dedupe_key=f"event:{session.pk}:created",
+            link=f"/admin/eventos?id={session.pk}",
+        )
         return Response(
             self.get_serializer(session).data, status=status.HTTP_201_CREATED
         )
@@ -97,11 +164,21 @@ class EventViewSet(viewsets.ModelViewSet):
         new_status = request.data.get("status")
         events = Event.objects.filter(pk__in=ids)
         updated = 0
+        from core.notifications import emit_safe
+        from core.notifications.events import EVENT_UPDATED
+
         for event in events:
             if new_status:
                 event.status = new_status
                 event.save()
                 log_action(request.user, AuditLog.Action.UPDATE, event, {"bulk_status": new_status})
+                emit_safe(
+                    EVENT_UPDATED,
+                    actor=request.user,
+                    payload=event_notify_payload(event),
+                    dedupe_key=f"event:{event.pk}:updated:{event.updated_at.timestamp() if getattr(event, 'updated_at', None) else event.pk}",
+                    link=f"/admin/eventos?id={event.pk}",
+                )
                 updated += 1
         return Response({"updated": updated})
 

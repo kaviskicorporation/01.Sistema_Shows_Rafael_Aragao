@@ -19,6 +19,8 @@ type Props = {
   glare?: boolean;
   /** Tom do fundo no hover (gold / white) */
   glow?: "gold" | "white";
+  /** Brilho de fundo mais visível (FAQ / cards de destaque) */
+  intense?: boolean;
   as?: "div" | "article";
   onMouseEnter?: React.MouseEventHandler;
   onMouseLeave?: React.MouseEventHandler;
@@ -34,6 +36,7 @@ export default function TiltCard({
   maxTilt = 3,
   glare = true,
   glow = "gold",
+  intense = false,
   as = "div",
   onMouseEnter,
   onMouseLeave,
@@ -54,13 +57,19 @@ export default function TiltCard({
 
   const glareX = useTransform(springX, [-0.5, 0.5], ["0%", "100%"]);
   const glareY = useTransform(springY, [-0.5, 0.5], ["0%", "100%"]);
-  const glareOpacity = useTransform(springHover, [0, 1], [0, 0.28]);
+  const glareOpacity = useTransform(
+    springHover,
+    [0, 1],
+    [0, intense ? 0.48 : 0.28],
+  );
 
   const tint =
     glow === "gold"
-      ? "color-mix(in srgb, var(--theme-primary) 8%, transparent)"
-      : "rgba(255,255,255,0.05)";
-  const bg = useMotionTemplate`radial-gradient(520px circle at ${glareX} ${glareY}, ${tint}, transparent 55%)`;
+      ? `color-mix(in srgb, var(--theme-primary) ${intense ? 22 : 8}%, transparent)`
+      : intense
+        ? "rgba(255,255,255,0.10)"
+        : "rgba(255,255,255,0.05)";
+  const bg = useMotionTemplate`radial-gradient(${intense ? "640px" : "520px"} circle at ${glareX} ${glareY}, ${tint}, transparent ${intense ? "62%" : "55%"})`;
   const shine = useMotionTemplate`radial-gradient(280px circle at ${glareX} ${glareY}, rgba(255,255,255,0.12), transparent 50%)`;
 
   function handleMove(e: React.MouseEvent) {

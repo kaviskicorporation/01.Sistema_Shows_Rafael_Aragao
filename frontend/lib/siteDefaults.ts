@@ -51,6 +51,8 @@ export const SITE_DEFAULTS: Pick<
   | "agenda_list_page_size"
   | "featured_video_url"
   | "sponsors_title"
+  | "faq_eyebrow"
+  | "faq_title"
   | "contact_eyebrow"
   | "contact_title_line1"
   | "contact_title_line2"
@@ -107,6 +109,8 @@ export const SITE_DEFAULTS: Pick<
   agenda_list_page_size: 20,
   featured_video_url: "https://www.youtube.com/watch?v=GyBf5BKZFqw&t=5s",
   sponsors_title: "Patrocinadores",
+  faq_eyebrow: "Dúvidas",
+  faq_title: "Perguntas frequentes",
   contact_eyebrow: "Contratação",
   contact_title_line1: "FAÇA SEU EVENTO",
   contact_title_line2: "CORPORATIVO",

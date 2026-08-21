@@ -50,7 +50,7 @@ export default function EventCard({ event }: { event: PublicEvent }) {
             <a
               href={event.tickets_link}
               target="_blank"
-              rel="noreferrer"
+              rel="noopener noreferrer"
               className="rounded-full bg-gold px-4 py-2 text-xs font-semibold text-ink transition-transform hover:scale-105"
             >
               Ingressos

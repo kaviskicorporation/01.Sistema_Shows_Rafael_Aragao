@@ -11,6 +11,7 @@ DELEGATABLE_MODULES = [
     "dashboard",
     "users",
     "audit",
+    "notifications",
 ]
 
 
@@ -60,6 +61,7 @@ ROLE_PERMISSIONS = {
         "audit": False,
         "config": True,
         "dashboard": True,
+        "notifications": False,
     },
     User.Role.COMERCIAL: {
         "events": True,
@@ -69,6 +71,7 @@ ROLE_PERMISSIONS = {
         "audit": False,
         "config": False,
         "dashboard": True,
+        "notifications": False,
     },
     User.Role.VISUALIZADOR: {
         "events": True,
@@ -78,5 +81,6 @@ ROLE_PERMISSIONS = {
         "audit": False,
         "config": False,
         "dashboard": True,
+        "notifications": False,
     },
 }

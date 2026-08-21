@@ -13,6 +13,8 @@ import {
   Menu,
   X,
   ClipboardList,
+  Bell,
+  Mail,
 } from "lucide-react";
 import { useState } from "react";
 import { useAuth } from "@/lib/auth";
@@ -31,6 +33,8 @@ const NAV: {
   { href: "/admin/formulario-contato", label: "Formulário", icon: ClipboardList, module: "config", tone: "form" },
   { href: "/admin/usuarios", label: "Equipe", icon: Users, module: "users", tone: "users" },
   { href: "/admin/auditoria", label: "Auditoria", icon: ScrollText, module: "audit", tone: "audit" },
+  { href: "/admin/notificacoes", label: "Notificações", icon: Bell, module: "dashboard", tone: "email" },
+  { href: "/admin/emails-alertas", label: "E-mails e alertas", icon: Mail, module: "config", tone: "email" },
   { href: "/admin/configuracoes", label: "Configurações", icon: Settings, module: "config", tone: "config" },
 ];
 
@@ -39,7 +43,12 @@ export default function Sidebar() {
   const { user, logout, can } = useAuth();
   const [open, setOpen] = useState(false);
 
-  const items = NAV.filter((n) => can(n.module));
+  const items = NAV.filter((n) => {
+    if (n.href === "/admin/emails-alertas") {
+      return can("config") || can("notifications");
+    }
+    return can(n.module);
+  });
 
   const content = (
     <div className="relative z-10 flex h-full flex-col">

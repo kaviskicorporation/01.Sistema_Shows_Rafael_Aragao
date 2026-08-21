@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   DndContext,
   DragOverlay,
@@ -55,6 +56,7 @@ import {
   Zap,
 } from "lucide-react";
 import Topbar from "@/components/admin/Topbar";
+import EmailThreadPanel from "@/components/admin/EmailThreadPanel";
 import { api, resultsOf, ApiError } from "@/lib/api";
 import type { CardItem, KanbanColumn, Label } from "@/lib/types";
 import { formatDateTime } from "@/lib/format";
@@ -104,7 +106,7 @@ const CARD_SWATCHES = [
   "#64748b",
 ];
 
-type DrawerTab = "chat" | "notes" | "files" | "history";
+type DrawerTab = "chat" | "notes" | "files" | "history" | "emails";
 
 const DRAWER_TABS: {
   id: DrawerTab;
@@ -140,6 +142,13 @@ const DRAWER_TABS: {
     Icon: History,
     active: "bg-violet-400 text-ink",
     idle: "text-violet-300/70 hover:bg-violet-400/10 hover:text-violet-200",
+  },
+  {
+    id: "emails",
+    label: "Troca de e-mails",
+    Icon: Mail,
+    active: "bg-indigo-400 text-ink",
+    idle: "text-indigo-300/70 hover:bg-indigo-400/10 hover:text-indigo-200",
   },
 ];
 
@@ -237,7 +246,14 @@ export default function CrmPage() {
   const [labelFilter, setLabelFilter] = useState<number | "all">("all");
   const [quickFilter, setQuickFilter] = useState<QuickFilter>("all");
   const [pipelineOpen, setPipelineOpen] = useState(false);
+  const [emailSending, setEmailSending] = useState(false);
+  const [deletePrompt, setDeletePrompt] = useState<CardItem | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [flash, setFlash] = useState("");
+  const [flashErr, setFlashErr] = useState("");
   const searchRef = useRef<HTMLInputElement>(null);
+  const searchParams = useSearchParams();
+  const handledQuery = useRef("");
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } })
@@ -257,6 +273,18 @@ export default function CrmPage() {
   useEffect(() => {
     load().catch(() => {});
   }, [load]);
+
+  useEffect(() => {
+    if (!cards.length) return;
+    const id = Number(searchParams.get("card") || "");
+    if (!id) return;
+    const tab = searchParams.get("tab") || "";
+    const key = `${id}:${tab}`;
+    if (handledQuery.current === key) return;
+    handledQuery.current = key;
+    const valid = DRAWER_TABS.some((t) => t.id === tab);
+    void openCard(id, valid ? (tab as DrawerTab) : "chat");
+  }, [cards.length, searchParams]);
 
   useEffect(() => {
     try {
@@ -439,16 +467,68 @@ export default function CrmPage() {
     setLossReason("");
   }
 
-  async function openCard(id: number) {
-    const full = await api.get<CardItem>(`/cards/${id}/`);
-    setSelected(full);
-    setDrawerTab("chat");
+  async function openCard(id: number, tab: DrawerTab = "chat") {
+    try {
+      const full = await api.get<CardItem>(`/cards/${id}/`);
+      setSelected(full);
+      setDrawerTab(tab);
+    } catch {
+      setSelected(null);
+    }
   }
 
   async function refreshSelected(id: number) {
     const full = await api.get<CardItem>(`/cards/${id}/`);
     setSelected(full);
     setCards((prev) => prev.map((c) => (c.id === full.id ? full : c)));
+  }
+
+  useEffect(() => {
+    if (!selected || drawerTab !== "emails") return;
+    const t = window.setInterval(() => {
+      void refreshSelected(selected.id);
+    }, 12000);
+    return () => window.clearInterval(t);
+  }, [selected?.id, drawerTab]);
+
+  async function sendLeadEmail(payload: {
+    subject: string;
+    body: string;
+    kind: "text" | "html";
+    files: File[];
+    replyTo?: number;
+  }) {
+    if (!selected) return;
+    setEmailSending(true);
+    try {
+      const fd = new FormData();
+      fd.append("subject", payload.subject);
+      fd.append("body", payload.body);
+      fd.append("kind", payload.kind);
+      if (payload.replyTo) fd.append("reply_to", String(payload.replyTo));
+      payload.files.forEach((f) => fd.append("files", f));
+      await api.post(`/cards/${selected.id}/emails`, fd);
+      await refreshSelected(selected.id);
+    } catch (e) {
+      const message =
+        e instanceof ApiError ? e.message : "Falha ao enviar o e-mail.";
+      window.alert(message);
+      throw e;
+    } finally {
+      setEmailSending(false);
+    }
+  }
+
+  async function syncLeadEmails() {
+    if (!selected) return "";
+    const res = await api.post<{ fetched: number }>(
+      `/cards/${selected.id}/emails/sync`,
+      {},
+    );
+    await refreshSelected(selected.id);
+    return res.fetched > 0
+      ? `${res.fetched} nova(s) mensagem(ns) importada(s) da caixa de entrada.`
+      : "Caixa de entrada lida. Nenhuma resposta nova por enquanto.";
   }
 
   async function updateCard(patch: Record<string, unknown>) {
@@ -557,9 +637,48 @@ export default function CrmPage() {
     if (selected) await refreshSelected(selected.id);
   }
 
+  useEffect(() => {
+    if (!flash && !flashErr) return;
+    const t = window.setTimeout(() => {
+      setFlash("");
+      setFlashErr("");
+    }, 4000);
+    return () => window.clearTimeout(t);
+  }, [flash, flashErr]);
+
+  async function confirmDeleteLead() {
+    if (!deletePrompt || deleting) return;
+    setDeleting(true);
+    setFlash("");
+    setFlashErr("");
+    try {
+      await api.delete(`/cards/${deletePrompt.id}`);
+      const removedId = deletePrompt.id;
+      setCards((prev) => prev.filter((c) => c.id !== removedId));
+      setSelected((cur) => (cur?.id === removedId ? null : cur));
+      setDeletePrompt(null);
+      setFlash("Lead excluído com sucesso.");
+    } catch {
+      setFlashErr("Não foi possível excluir o lead. Tente novamente.");
+    } finally {
+      setDeleting(false);
+    }
+  }
+
   return (
     <div className="flex h-[100dvh] flex-col overflow-hidden">
       <Topbar title="CRM Kanban" />
+      {(flash || flashErr) && (
+        <p
+          className={`mx-3 mt-2 shrink-0 rounded-xl border px-4 py-2 text-sm sm:mx-5 ${
+            flashErr
+              ? "border-red-400/30 bg-red-400/10 text-red-200"
+              : "border-emerald-400/30 bg-emerald-400/10 text-emerald-200"
+          }`}
+        >
+          {flashErr || flash}
+        </p>
+      )}
 
       <div className="flex min-h-0 flex-1 flex-col gap-2 px-3 pb-2 pt-1.5 sm:gap-3 sm:px-5 sm:pb-3 sm:pt-2">
         {/* Hero + toolbar comercial */}
@@ -812,13 +931,27 @@ export default function CrmPage() {
                       .join(" · ") || "—"}
                   </p>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setSelected(null)}
-                  className="rounded-full border border-white/10 p-2 text-white/50 hover:border-gold/40 hover:text-gold"
-                >
-                  <X size={18} />
-                </button>
+                <div className="flex shrink-0 items-start gap-1.5">
+                  {writable && (
+                    <button
+                      type="button"
+                      onClick={() => setDeletePrompt(selected)}
+                      className="rounded-full border border-white/10 p-2 text-white/50 hover:border-red-400/40 hover:text-red-300"
+                      title="Excluir lead"
+                      aria-label="Excluir lead"
+                    >
+                      <Trash2 size={18} />
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setSelected(null)}
+                    className="rounded-full border border-white/10 p-2 text-white/50 hover:border-gold/40 hover:text-gold"
+                    title="Fechar"
+                  >
+                    <X size={18} />
+                  </button>
+                </div>
               </div>
 
               <div className="mt-3 flex flex-wrap gap-2">
@@ -962,7 +1095,7 @@ export default function CrmPage() {
 
               <div className="crm-activity-card relative flex min-h-0 flex-1 flex-col">
                 <div className="relative z-[1] flex shrink-0 justify-center px-3 pt-2.5">
-                  <div className="inline-flex max-w-full gap-0.5 rounded-full bg-black/40 p-1">
+                  <div className="inline-flex max-w-full gap-0.5 overflow-x-auto rounded-full bg-black/40 p-1">
                     {DRAWER_TABS.map((tab) => {
                       const count =
                         tab.id === "chat"
@@ -971,7 +1104,9 @@ export default function CrmPage() {
                             ? selected.notes?.length || 0
                             : tab.id === "files"
                               ? selected.attachments?.length || 0
-                              : selected.history?.length || 0;
+                              : tab.id === "emails"
+                                ? selected.emails?.length || 0
+                                : selected.history?.length || 0;
                       const on = drawerTab === tab.id;
                       return (
                         <button
@@ -1034,11 +1169,69 @@ export default function CrmPage() {
                   {drawerTab === "history" && (
                     <HistoryPanel history={selected.history || []} />
                   )}
+
+                  {drawerTab === "emails" && (
+                    <EmailThreadPanel
+                      emails={selected.emails || []}
+                      leadEmail={selected.lead.email}
+                      writable={writable}
+                      sending={emailSending}
+                      onSend={sendLeadEmail}
+                      onSync={syncLeadEmails}
+                    />
+                  )}
                 </div>
               </div>
             </div>
           </aside>
         </div>
+      )}
+
+      {deletePrompt && (
+        <ModalShell
+          onClose={() => {
+            if (!deleting) setDeletePrompt(null);
+          }}
+        >
+          <h3 className="font-display text-lg font-bold">Excluir lead</h3>
+          <p className="mt-2 text-sm text-white/70">
+            Tem certeza de que deseja excluir permanentemente este lead?
+          </p>
+          <p className="mt-1 text-sm text-white/45">
+            Esta ação não poderá ser desfeita.
+            {deletePrompt.lead.name ? (
+              <>
+                {" "}
+                <span className="text-white/70">
+                  ({deletePrompt.lead.name})
+                </span>
+              </>
+            ) : null}
+          </p>
+          {flashErr && (
+            <p className="mt-3 rounded-lg border border-red-400/30 bg-red-400/10 px-3 py-2 text-sm text-red-200">
+              {flashErr}
+            </p>
+          )}
+          <div className="mt-5 flex justify-end gap-2">
+            <button
+              type="button"
+              disabled={deleting}
+              onClick={() => setDeletePrompt(null)}
+              className="rounded-full border border-white/15 px-4 py-2 text-sm disabled:opacity-50"
+            >
+              Cancelar
+            </button>
+            <button
+              type="button"
+              disabled={deleting}
+              onClick={() => void confirmDeleteLead()}
+              className="rounded-full bg-red-500 px-4 py-2 text-sm font-semibold text-white hover:bg-red-400 disabled:opacity-50"
+            >
+              {deleting ? "Excluindo…" : "Sim, excluir"}
+            </button>
+          </div>
+        </ModalShell>
       )}
 
       {lossPrompt && (
@@ -1238,6 +1431,14 @@ function ModalShell({
   onClose: () => void;
   wide?: boolean;
 }) {
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") onClose();
+    }
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
   return (
     <div
       className="fixed inset-0 z-[60] flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm"

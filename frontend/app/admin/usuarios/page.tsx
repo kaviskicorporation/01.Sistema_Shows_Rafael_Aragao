@@ -18,6 +18,7 @@ import {
   KeyRound,
   Sparkles,
   Save,
+  Bell,
 } from "lucide-react";
 import Topbar from "@/components/admin/Topbar";
 import AdminHero from "@/components/admin/AdminHero";
@@ -72,7 +73,7 @@ const DELEGATABLE: {
   {
     key: "config",
     label: "Configurações",
-    hint: "Textos, cores e redes do site",
+    hint: "Textos, cores, e-mails e redes do site",
     Icon: Settings,
     tone: "config",
   },
@@ -89,6 +90,13 @@ const DELEGATABLE: {
     hint: "Histórico de ações do sistema",
     Icon: ScrollText,
     tone: "audit",
+  },
+  {
+    key: "notifications",
+    label: "Notificações",
+    hint: "Matriz, destinatários e templates de aviso",
+    Icon: Bell,
+    tone: "email",
   },
 ];
 

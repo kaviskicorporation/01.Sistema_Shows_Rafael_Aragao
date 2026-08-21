@@ -7,7 +7,8 @@ export type ModuleKey =
   | "users"
   | "audit"
   | "config"
-  | "dashboard";
+  | "dashboard"
+  | "notifications";
 
 export interface User {
   id: number;
@@ -100,6 +101,18 @@ export interface Sponsor {
   is_active: boolean;
 }
 
+export interface FaqItem {
+  id: number;
+  question: string;
+  answer: string;
+  answer_html: string;
+  icon?: string;
+  order: number;
+  is_active: boolean;
+  created_at?: string;
+  updated_at?: string;
+}
+
 export interface Lead {
   id: number;
   name: string;
@@ -175,6 +188,33 @@ export interface CardAttachment {
   uploaded_at: string;
 }
 
+export interface CardEmailAttachment {
+  id: number;
+  name: string;
+  content_type: string;
+  file_url: string;
+}
+
+export interface CardEmailMessage {
+  id: number;
+  direction: "in" | "out";
+  subject: string;
+  body_text: string;
+  body_html_safe: string;
+  body_kind: "text" | "html";
+  from_email: string;
+  to_email: string;
+  is_bounce: boolean;
+  sent_by_name: string;
+  files: CardEmailAttachment[];
+  created_at: string;
+}
+
+export interface EmailSettingsPublic {
+  smtp_override: boolean;
+  imap_override: boolean;
+}
+
 export interface CardItem {
   id: number;
   lead: Lead;
@@ -192,6 +232,7 @@ export interface CardItem {
   checklist: ChecklistItem[];
   attachments: CardAttachment[];
   history: CardHistory[];
+  emails?: CardEmailMessage[];
   created_at: string;
   updated_at: string;
 }
@@ -251,6 +292,8 @@ export interface SiteConfig {
   agenda_list_page_size?: number;
   featured_video_url?: string;
   sponsors_title?: string;
+  faq_eyebrow?: string;
+  faq_title?: string;
   sponsors?: Sponsor[];
   contact_eyebrow?: string;
   contact_title_line1?: string;
@@ -329,7 +372,41 @@ export interface AppNotification {
   message: string;
   link: string;
   is_read: boolean;
+  event_type?: string;
   created_at: string;
+}
+
+export interface NotificationRecipient {
+  id: number;
+  email: string;
+  is_primary: boolean;
+  is_active: boolean;
+  created_at: string;
+}
+
+export interface NotificationEventSetting {
+  key: string;
+  label: string;
+  group: string;
+  group_label: string;
+  placeholders: string[];
+  default_subject: string;
+  default_body: string;
+  notify_admin: boolean;
+  notify_gerente: boolean;
+  notify_comercial: boolean;
+  notify_visualizador: boolean;
+  send_email: boolean;
+  email_recipient_ids: number[];
+  subject: string;
+  body: string;
+  is_custom: boolean;
+}
+
+export interface NotificationSettingsPayload {
+  events: NotificationEventSetting[];
+  recipients: NotificationRecipient[];
+  mailbox_addresses: string[];
 }
 
 export interface Paginated<T> {

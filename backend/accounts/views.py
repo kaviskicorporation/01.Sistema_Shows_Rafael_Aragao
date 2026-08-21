@@ -176,11 +176,47 @@ class UserViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         instance = serializer.save()
         log_action(self.request.user, AuditLog.Action.CREATE, instance)
+        from core.notifications import emit_safe
+        from core.notifications.events import USER_CREATED
+
+        emit_safe(
+            USER_CREATED,
+            actor=self.request.user,
+            payload={
+                "eventName": instance.get_full_name() or instance.username,
+                "recipient": instance.email or "",
+            },
+            dedupe_key=f"user:{instance.pk}:created",
+            link="/admin/usuarios",
+        )
 
     def perform_update(self, serializer):
         instance = serializer.save()
         log_action(self.request.user, AuditLog.Action.UPDATE, instance)
+        from django.utils import timezone
+        from core.notifications import emit_safe
+        from core.notifications.events import USER_UPDATED
+
+        emit_safe(
+            USER_UPDATED,
+            actor=self.request.user,
+            payload={"eventName": instance.get_full_name() or instance.username},
+            dedupe_key=f"user:{instance.pk}:updated:{timezone.now().timestamp()}",
+            link="/admin/usuarios",
+        )
 
     def perform_destroy(self, instance):
+        label = instance.get_full_name() or instance.username
+        pk = instance.pk
         log_action(self.request.user, AuditLog.Action.DELETE, instance)
         instance.delete()
+        from core.notifications import emit_safe
+        from core.notifications.events import USER_DELETED
+
+        emit_safe(
+            USER_DELETED,
+            actor=self.request.user,
+            payload={"eventName": label},
+            dedupe_key=f"user:{pk}:deleted",
+            link="/admin/usuarios",
+        )

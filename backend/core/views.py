@@ -2,6 +2,7 @@ import csv
 from datetime import timedelta
 from io import BytesIO
 
+from django.conf import settings
 from django.db.models import Count
 from django.http import HttpResponse
 from django.utils import timezone
@@ -18,13 +19,28 @@ from core.demo_data import DEMO_LEADS
 from crm.models import Card, CardHistory, KanbanColumn, Label, Lead
 from events.models import Event
 
-from .models import AuditLog, Notification, SiteConfig, Sponsor
+from .models import AuditLog, EmailSettings, Notification, SiteConfig, Sponsor, FaqItem
 from .serializers import (
     AuditLogSerializer,
+    FaqItemSerializer,
     NotificationSerializer,
     SiteConfigSerializer,
     SponsorSerializer,
 )
+
+
+def _emit_configuration(user, detail: str, link: str = "/admin/configuracoes"):
+    from django.utils import timezone
+    from core.notifications import emit_safe
+    from core.notifications.events import CONFIGURATION_UPDATED
+
+    emit_safe(
+        CONFIGURATION_UPDATED,
+        actor=user,
+        payload={"eventName": detail},
+        dedupe_key=f"config:{detail[:40]}:{timezone.now().timestamp()}",
+        link=link,
+    )
 
 
 class SiteConfigView(APIView):
@@ -47,6 +63,7 @@ class SiteConfigView(APIView):
         if not (request.user.is_authenticated and request.user.can_write("config")):
             return Response({"detail": "Sem permissão."}, status=403)
         config = SiteConfig.load()
+        form_before = config.contact_form_config
         serializer = SiteConfigSerializer(
             config, data=request.data, partial=True, context={"request": request}
         )
@@ -59,6 +76,30 @@ class SiteConfigView(APIView):
             object_id="1",
             object_repr="Configuração do site",
         )
+        from core.notifications import emit_safe
+        from core.notifications.events import CONFIGURATION_UPDATED, FORM_UPDATED
+        from django.utils import timezone
+
+        stamp = timezone.now().timestamp()
+        if "contact_form_config" in serializer.validated_data and (
+            serializer.validated_data.get("contact_form_config") != form_before
+        ):
+            emit_safe(
+                FORM_UPDATED,
+                actor=request.user,
+                payload={"eventName": "Contato"},
+                dedupe_key=f"form:contact:{stamp}",
+                link="/admin/formulario-contato",
+            )
+        other = {k: v for k, v in serializer.validated_data.items() if k != "contact_form_config"}
+        if other:
+            emit_safe(
+                CONFIGURATION_UPDATED,
+                actor=request.user,
+                payload={"eventName": "configurações do site"},
+                dedupe_key=f"config:site:{stamp}",
+                link="/admin/configuracoes",
+            )
         return Response(serializer.data)
 
 
@@ -92,19 +133,81 @@ class SponsorViewSet(viewsets.ModelViewSet):
         else:
             instance = serializer.save()
         log_action(self.request.user, AuditLog.Action.CREATE, instance)
+        _emit_configuration(self.request.user, f'patrocinador "{instance.name}"')
 
     def perform_update(self, serializer):
         instance = serializer.save()
         log_action(self.request.user, AuditLog.Action.UPDATE, instance)
+        _emit_configuration(self.request.user, f'patrocinador "{instance.name}"')
 
     def perform_destroy(self, instance):
+        name = instance.name
         log_action(self.request.user, AuditLog.Action.DELETE, instance)
         instance.delete()
+        _emit_configuration(self.request.user, f'patrocinador "{name}"')
 
     @action(detail=False, methods=["post"])
     def reorder(self, request):
         for item in request.data.get("sponsors", []):
             Sponsor.objects.filter(pk=item.get("id")).update(
+                order=item.get("order", 0)
+            )
+        return Response({"detail": "ok"})
+
+
+class FaqItemViewSet(viewsets.ModelViewSet):
+    """CRUD do FAQ (admin) — GET público lista só itens ativos."""
+
+    serializer_class = FaqItemSerializer
+    module = "config"
+    pagination_class = None
+
+    def get_permissions(self):
+        if self.action in ("list", "retrieve"):
+            return [AllowAny()]
+        return [ModulePermission()]
+
+    def get_queryset(self):
+        qs = FaqItem.objects.all().order_by("order", "id")
+        user = self.request.user
+        if (
+            user
+            and user.is_authenticated
+            and getattr(user, "has_module", lambda _m: False)("config")
+        ):
+            return qs
+        return qs.filter(is_active=True)
+
+    def perform_create(self, serializer):
+        if "order" not in serializer.validated_data:
+            last = FaqItem.objects.order_by("-order").first()
+            instance = serializer.save(order=(last.order + 1) if last else 0)
+        else:
+            instance = serializer.save()
+        log_action(self.request.user, AuditLog.Action.CREATE, instance)
+        _emit_configuration(
+            self.request.user, f'FAQ "{instance.question[:80]}"', "/admin/configuracoes"
+        )
+
+    def perform_update(self, serializer):
+        instance = serializer.save()
+        log_action(self.request.user, AuditLog.Action.UPDATE, instance)
+        _emit_configuration(
+            self.request.user, f'FAQ "{instance.question[:80]}"', "/admin/configuracoes"
+        )
+
+    def perform_destroy(self, instance):
+        question = instance.question
+        log_action(self.request.user, AuditLog.Action.DELETE, instance)
+        instance.delete()
+        _emit_configuration(
+            self.request.user, f'FAQ "{question[:80]}"', "/admin/configuracoes"
+        )
+
+    @action(detail=False, methods=["post"])
+    def reorder(self, request):
+        for item in request.data.get("items", []):
+            FaqItem.objects.filter(pk=item.get("id")).update(
                 order=item.get("order", 0)
             )
         return Response({"detail": "ok"})
@@ -150,15 +253,71 @@ class NotificationViewSet(viewsets.ModelViewSet):
     queryset = Notification.objects.all()
     serializer_class = NotificationSerializer
     permission_classes = [IsAuthenticated]
+    pagination_class = None
+    http_method_names = ["get", "post", "patch", "head", "options"]
+
+    def get_queryset(self):
+        return Notification.objects.filter(user=self.request.user)
+
+    def list(self, request, *args, **kwargs):
+        qs = self.get_queryset()
+        is_read = request.query_params.get("is_read")
+        if is_read in ("0", "false", "False"):
+            qs = qs.filter(is_read=False)
+        elif is_read in ("1", "true", "True"):
+            qs = qs.filter(is_read=True)
+        group = (request.query_params.get("group") or "").strip()
+        if group:
+            from core.notifications.events import EVENTS
+
+            keys = [k for k, spec in EVENTS.items() if spec.group == group]
+            if keys:
+                qs = qs.filter(event_type__in=keys)
+            else:
+                qs = qs.none()
+        try:
+            page = max(int(request.query_params.get("page") or 0), 0)
+        except (TypeError, ValueError):
+            page = 0
+        try:
+            page_size = min(max(int(request.query_params.get("page_size") or 0), 0), 100)
+        except (TypeError, ValueError):
+            page_size = 0
+        try:
+            limit = min(max(int(request.query_params.get("limit") or 80), 1), 80)
+        except (TypeError, ValueError):
+            limit = 80
+        if page and page_size:
+            start = (page - 1) * page_size
+            total = qs.count()
+            items = qs[start : start + page_size]
+            return Response(
+                {
+                    "count": total,
+                    "results": self.get_serializer(items, many=True).data,
+                }
+            )
+        return Response(self.get_serializer(qs[:limit], many=True).data)
+
+    def partial_update(self, request, *args, **kwargs):
+        kwargs["partial"] = True
+        return super().update(request, *args, **kwargs)
 
     @action(detail=False, methods=["post"], url_path="read-all")
     def read_all(self, request):
-        Notification.objects.filter(is_read=False).update(is_read=True)
+        self.get_queryset().filter(is_read=False).update(is_read=True)
         return Response({"detail": "ok"})
 
     @action(detail=False, methods=["get"], url_path="unread-count")
     def unread_count(self, request):
-        return Response({"count": Notification.objects.filter(is_read=False).count()})
+        qs = self.get_queryset()
+        latest = qs.order_by("-id").values_list("id", flat=True).first()
+        return Response(
+            {
+                "count": qs.filter(is_read=False).count(),
+                "latest_id": latest or 0,
+            }
+        )
 
 
 class DashboardView(APIView):
@@ -377,12 +536,6 @@ class DemoDataView(APIView):
         config.demo_data_active = True
         config.save(update_fields=["demo_data_active", "updated_at"])
 
-        Notification.objects.create(
-            title="Dados de demonstração carregados",
-            message=f"{created} leads demo no CRM. Remova quando for entregar o site.",
-            link="/admin",
-        )
-
         return Response({"detail": "ok", "created": created, "demo_data_active": True})
 
     def delete(self, request):
@@ -485,3 +638,166 @@ class DashboardPDFView(APIView):
             content_type="application/pdf",
             headers={"Content-Disposition": "attachment; filename=dashboard.pdf"},
         )
+
+
+class EmailSettingsView(APIView):
+    """GET/PUT da config SMTP/IMAP. Nunca devolve credenciais internas nem senha."""
+
+    permission_classes = [ModulePermission]
+    module = "config"
+
+    def get(self, request):
+        row = EmailSettings.load()
+        if row.team_to:
+            row.team_to = ""
+            row.save(update_fields=["team_to"])
+        return Response(
+            {
+                "smtp_override": row.smtp_package_complete(),
+                "imap_override": row.imap_package_complete(),
+            }
+        )
+
+    def put(self, request):
+        row = EmailSettings.load()
+        data = request.data if isinstance(request.data, dict) else {}
+        errors = {}
+        row.team_to = ""
+
+        smtp = data.get("smtp")
+        if smtp is not None:
+            err = self._apply_smtp(row, smtp if isinstance(smtp, dict) else {})
+            if err:
+                errors["smtp"] = err
+
+        imap = data.get("imap")
+        if imap is not None:
+            err = self._apply_imap(row, imap if isinstance(imap, dict) else {})
+            if err:
+                errors["imap"] = err
+
+        if errors:
+            return Response(errors, status=400)
+
+        row.save()
+        log_action(request.user, AuditLog.Action.UPDATE, row)
+        return self.get(request)
+
+    def _apply_smtp(self, row, pkg: dict):
+        host = str(pkg.get("host") or "").strip()
+        port = str(pkg.get("port") or "").strip()
+        user = str(pkg.get("user") or "").strip()
+        password = str(pkg.get("password") or "")
+        from_email = str(pkg.get("from_email") or pkg.get("from") or "").strip()
+        use_user = bool(pkg.get("use_user"))
+        if use_user:
+            from_email = user
+
+        any_filled = any([host, port, user, password, from_email])
+        if not any_filled:
+            return "Preencha o pacote SMTP completo, ou use Limpar para voltar ao servidor interno."
+
+        missing = []
+        if not host:
+            missing.append("host")
+        if not port:
+            missing.append("porta")
+        if not user:
+            missing.append("user")
+        if not from_email:
+            missing.append("from")
+        if not password and not row.smtp_password:
+            missing.append("senha")
+        if missing:
+            return (
+                "Pacote incompleto. Preencha todos os campos do SMTP "
+                f"({', '.join(missing)}) ou deixe tudo em branco e use o servidor interno."
+            )
+        try:
+            port_n = int(port)
+        except (TypeError, ValueError):
+            return "Porta SMTP inválida."
+        if port_n < 1 or port_n > 65535:
+            return "Porta SMTP inválida."
+
+        row.smtp_host = host
+        row.smtp_port = port_n
+        row.smtp_user = user
+        row.smtp_from = from_email
+        if password:
+            row.smtp_password = password
+        return None
+
+    def _apply_imap(self, row, pkg: dict):
+        host = str(pkg.get("host") or "").strip()
+        port = str(pkg.get("port") or "").strip()
+        user = str(pkg.get("user") or "").strip()
+        password = str(pkg.get("password") or "")
+        from_email = str(pkg.get("from_email") or pkg.get("from") or "").strip()
+        use_user = bool(pkg.get("use_user"))
+        if use_user:
+            from_email = user
+
+        any_filled = any([host, port, user, password, from_email])
+        if not any_filled:
+            return "Preencha o pacote IMAP completo, ou use Limpar para voltar ao servidor interno."
+
+        missing = []
+        if not host:
+            missing.append("host")
+        if not port:
+            missing.append("porta")
+        if not user:
+            missing.append("user")
+        if not password and not row.imap_password:
+            missing.append("senha")
+        if missing:
+            return (
+                "Pacote incompleto. Preencha todos os campos do IMAP "
+                f"({', '.join(missing)}) ou deixe tudo em branco e use o servidor interno."
+            )
+        try:
+            port_n = int(port)
+        except (TypeError, ValueError):
+            return "Porta IMAP inválida."
+        if port_n < 1 or port_n > 65535:
+            return "Porta IMAP inválida."
+
+        row.imap_host = host
+        row.imap_port = port_n
+        row.imap_user = user
+        if password:
+            row.imap_password = password
+        if "ssl" in pkg:
+            row.imap_ssl = bool(pkg.get("ssl"))
+        else:
+            row.imap_ssl = True
+        row.imap_allow_self_signed = bool(pkg.get("allow_self_signed"))
+        return None
+
+
+class EmailSettingsClearView(APIView):
+    permission_classes = [ModulePermission]
+    module = "config"
+
+    def post(self, request):
+        which = str(request.data.get("target") or "").strip().lower()
+        row = EmailSettings.load()
+        if which == "smtp":
+            row.smtp_host = ""
+            row.smtp_port = None
+            row.smtp_user = ""
+            row.smtp_password = ""
+            row.smtp_from = ""
+        elif which == "imap":
+            row.imap_host = ""
+            row.imap_port = None
+            row.imap_user = ""
+            row.imap_password = ""
+            row.imap_ssl = True
+            row.imap_allow_self_signed = True
+        else:
+            return Response({"detail": "Informe target=smtp ou imap."}, status=400)
+        row.save()
+        log_action(request.user, AuditLog.Action.UPDATE, row)
+        return EmailSettingsView().get(request)

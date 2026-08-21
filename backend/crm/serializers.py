@@ -5,6 +5,8 @@ from .models import (
     CardAttachment,
     CardChecklistItem,
     CardComment,
+    CardEmailAttachment,
+    CardEmailMessage,
     CardHistory,
     CardNote,
     KanbanColumn,
@@ -68,6 +70,9 @@ class PublicLeadSerializer(serializers.ModelSerializer):
         if value:
             raise serializers.ValidationError("Spam detectado.")
         return value
+
+    def validate_email(self, value):
+        return (value or "").strip().lower()
 
     def validate(self, attrs):
         if attrs.get("area_atuacao") == "outros" and not attrs.get("area_outros"):
@@ -177,6 +182,53 @@ class CardHistorySerializer(serializers.ModelSerializer):
         fields = ["id", "user_name", "text", "created_at"]
 
 
+class CardEmailAttachmentSerializer(serializers.ModelSerializer):
+    file_url = serializers.SerializerMethodField()
+
+    class Meta:
+        model = CardEmailAttachment
+        fields = ["id", "name", "content_type", "file_url"]
+
+    def get_file_url(self, obj):
+        if not obj.file:
+            return ""
+        request = self.context.get("request")
+        url = obj.file.url
+        return request.build_absolute_uri(url) if request else url
+
+
+class CardEmailMessageSerializer(serializers.ModelSerializer):
+    files = CardEmailAttachmentSerializer(many=True, read_only=True)
+    sent_by_name = serializers.CharField(
+        source="sent_by.username", read_only=True, default=""
+    )
+    body_html_safe = serializers.SerializerMethodField()
+
+    class Meta:
+        model = CardEmailMessage
+        fields = [
+            "id",
+            "direction",
+            "subject",
+            "body_text",
+            "body_html_safe",
+            "body_kind",
+            "from_email",
+            "to_email",
+            "is_bounce",
+            "sent_by_name",
+            "files",
+            "created_at",
+        ]
+
+    def get_body_html_safe(self, obj):
+        if obj.body_kind != CardEmailMessage.BodyKind.HTML:
+            return ""
+        from core.html_sanitize import sanitize_html
+
+        return sanitize_html(obj.body_html or "")
+
+
 class CardSerializer(serializers.ModelSerializer):
     lead = LeadSerializer(read_only=True)
     comments = CardCommentSerializer(many=True, read_only=True)
@@ -184,6 +236,7 @@ class CardSerializer(serializers.ModelSerializer):
     checklist = CardChecklistItemSerializer(many=True, read_only=True)
     attachments = CardAttachmentSerializer(many=True, read_only=True)
     history = CardHistorySerializer(many=True, read_only=True)
+    emails = CardEmailMessageSerializer(many=True, read_only=True)
     labels = LabelSerializer(many=True, read_only=True)
     label_ids = serializers.PrimaryKeyRelatedField(
         many=True, write_only=True, queryset=Label.objects.all(),
@@ -213,6 +266,7 @@ class CardSerializer(serializers.ModelSerializer):
             "checklist",
             "attachments",
             "history",
+            "emails",
             "created_at",
             "updated_at",
         ]

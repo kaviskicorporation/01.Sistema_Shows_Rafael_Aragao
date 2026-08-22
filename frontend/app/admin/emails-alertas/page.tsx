@@ -16,7 +16,8 @@ import type { EmailSettingsPublic } from "@/lib/types";
 import NotificationSettingsPanel from "@/components/admin/NotificationSettingsPanel";
 
 const inputCls =
-  "w-full rounded-lg border border-white/10 bg-ink px-3 py-2 text-sm text-white outline-none placeholder:text-white/25 focus:border-gold disabled:opacity-60";
+  "rounded-lg border border-white/10 bg-ink px-3 py-2 text-sm text-white outline-none placeholder:text-white/25 focus:border-gold disabled:opacity-60";
+const inputFullCls = `w-full ${inputCls}`;
 
 type SmtpForm = {
   host: string;
@@ -550,16 +551,16 @@ function HostPort({
         <input
           value={host}
           onChange={(e) => onHost(e.target.value)}
-          className={`${inputCls} flex-1`}
+          className={`${inputCls} min-w-0 flex-1`}
           placeholder="host"
           autoComplete="off"
           disabled={disabled}
         />
-        <span className="text-white/35">:</span>
+        <span className="shrink-0 text-white/35">:</span>
         <input
           value={port}
           onChange={(e) => onPort(e.target.value.replace(/[^\d]/g, ""))}
-          className={`${inputCls} w-20 text-center`}
+          className={`${inputCls} w-24 shrink-0 text-center`}
           placeholder={portPlaceholder}
           inputMode="numeric"
           autoComplete="off"
@@ -594,7 +595,7 @@ function Field({
         type={type}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className={`${inputCls} mt-1`}
+        className={`${inputFullCls} mt-1`}
         autoComplete={autoComplete}
         placeholder={placeholder}
         disabled={disabled}
@@ -626,7 +627,7 @@ function FromRow({
           type="email"
           value={useUser ? user : value}
           onChange={(e) => onValue(e.target.value)}
-          className={`${inputCls} mt-1`}
+          className={`${inputFullCls} mt-1`}
           disabled={disabled || useUser}
           autoComplete="off"
         />

@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { formatDateTime } from "@/lib/format";
 import type { CardEmailAttachment, CardEmailMessage } from "@/lib/types";
+import ThemedSelect from "@/components/ui/ThemedSelect";
 
 function relativeTime(iso: string) {
   const d = new Date(iso);
@@ -372,24 +373,25 @@ export default function EmailThreadPanel({
           className="mt-2 space-y-2 rounded-2xl bg-indigo-400/10 p-2"
         >
           <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center">
-            <select
+            <ThemedSelect
+              compact
               value={threadKey}
-              onChange={(e) => setThreadKey(e.target.value)}
-              className="w-full rounded-xl border border-white/10 bg-ink/40 px-3 py-2 text-sm outline-none focus:border-indigo-300/50 sm:max-w-[58%]"
-            >
-              {threads.map((t) => (
-                <option key={t.key} value={t.key}>
-                  Responder: {t.label} ({t.count})
-                </option>
-              ))}
-              <option value="new">Novo assunto</option>
-            </select>
+              onChange={setThreadKey}
+              className="w-full sm:max-w-[58%]"
+              options={[
+                ...threads.map((t) => ({
+                  value: t.key,
+                  label: `Responder: ${t.label} (${t.count})`,
+                })),
+                { value: "new", label: "Novo assunto" },
+              ]}
+            />
             {isNew ? (
               <input
                 value={newSubject}
                 onChange={(e) => setNewSubject(e.target.value)}
                 placeholder="Assunto novo"
-                className="w-full rounded-xl border border-white/10 bg-ink/40 px-3 py-2 text-sm outline-none placeholder:text-white/30 focus:border-indigo-300/50"
+                className="w-full rounded-xl border border-white/10 bg-ink px-3 py-2.5 text-sm outline-none placeholder:text-white/30 focus:border-gold"
               />
             ) : (
               <p className="min-w-0 flex-1 truncate px-1 text-[11px] text-white/45">

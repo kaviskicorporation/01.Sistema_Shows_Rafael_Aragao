@@ -51,8 +51,11 @@ class EventSpec:
     skip_actor: bool = True
 
 
+ACCESS_LINK = "\n\nPara acessar, use o link:\n{{link}}"
+
+
 def _ph(*names: str) -> tuple[str, ...]:
-    base = ("actorName", "date")
+    base = ("actorName", "date", "link")
     extra = tuple(n for n in names if n not in base)
     return base + extra
 
@@ -68,8 +71,8 @@ EVENTS: dict[str, EventSpec] = {
             "Uma nova mensagem foi recebida no CRM.\n\n"
             "Remetente: {{sender}}\n"
             "Assunto: {{subject}}\n"
-            "Data: {{date}}\n\n"
-            "Acesse a plataforma para visualizar a conversa e responder."
+            "Data: {{date}}"
+            f"{ACCESS_LINK}"
         ),
         in_app_title="Nova mensagem recebida",
         in_app_message="{{sender}} respondeu à conversa \"{{subject}}\".",
@@ -90,7 +93,8 @@ EVENTS: dict[str, EventSpec] = {
             "Lead: {{leadName}}\n"
             "Destinatário: {{recipient}}\n"
             "Data: {{date}}\n\n"
-            "Confira o endereço e tente novamente pela plataforma."
+            "Confira o endereço e tente novamente."
+            f"{ACCESS_LINK}"
         ),
         in_app_title="E-mail não entregue: {{leadName}}",
         in_app_message="Falhou para {{recipient}}",
@@ -112,12 +116,13 @@ EVENTS: dict[str, EventSpec] = {
             "Destinatário: {{recipient}}\n"
             "Assunto: {{subject}}\n"
             "Data: {{date}}"
+            f"{ACCESS_LINK}"
         ),
         in_app_title="E-mail enviado para {{leadName}}",
         in_app_message="{{actorName}} enviou \"{{subject}}\".",
         notify_admin=True,
         notify_gerente=True,
-        send_email=False,
+        send_email=True,
         skip_actor=True,
     ),
     CRM_LEAD_CREATED: EventSpec(
@@ -127,13 +132,13 @@ EVENTS: dict[str, EventSpec] = {
         placeholders=_ph("leadName", "sender", "eventName", "recipient"),
         default_subject="Novo lead: {{leadName}}",
         default_body=(
-            "Um novo lead foi cadastrado na plataforma.\n\n"
+            "Um novo cadastro foi recebido no formulário / CRM.\n\n"
             "Nome: {{leadName}}\n"
             "E-mail: {{sender}}\n"
             "Tipo: {{eventName}}\n"
             "Data: {{date}}\n"
-            "Quem registrou: {{actorName}}\n\n"
-            "Acesse a plataforma para ver o card no CRM."
+            "Quem registrou: {{actorName}}"
+            f"{ACCESS_LINK}"
         ),
         in_app_title="Novo lead: {{leadName}}",
         in_app_message="{{eventName}}",
@@ -155,6 +160,7 @@ EVENTS: dict[str, EventSpec] = {
             "Cidade: {{city}}\n"
             "Data: {{eventDate}}\n"
             "Horário: {{eventTime}}"
+            f"{ACCESS_LINK}"
         ),
         in_app_title="Novo evento criado",
         in_app_message="{{actorName}} criou \"{{eventName}}\".",
@@ -175,12 +181,13 @@ EVENTS: dict[str, EventSpec] = {
             "Cidade: {{city}}\n"
             "Data: {{eventDate}}\n"
             "Horário: {{eventTime}}"
+            f"{ACCESS_LINK}"
         ),
         in_app_title="Evento alterado",
         in_app_message="{{actorName}} alterou \"{{eventName}}\".",
         notify_admin=True,
         notify_gerente=True,
-        send_email=False,
+        send_email=True,
         skip_actor=False,
     ),
     EVENT_DELETED: EventSpec(
@@ -195,6 +202,7 @@ EVENTS: dict[str, EventSpec] = {
             "Cidade: {{city}}\n"
             "Data: {{eventDate}}\n"
             "Horário: {{eventTime}}"
+            f"{ACCESS_LINK}"
         ),
         in_app_title="Evento excluído",
         in_app_message="{{actorName}} excluiu \"{{eventName}}\".",
@@ -211,14 +219,14 @@ EVENTS: dict[str, EventSpec] = {
         default_subject="Formulário de contato atualizado",
         default_body=(
             "{{actorName}} alterou o formulário \"{{eventName}}\".\n\n"
-            "Data: {{date}}\n\n"
-            "Acesse a plataforma para revisar os campos."
+            "Data: {{date}}"
+            f"{ACCESS_LINK}"
         ),
         in_app_title="Formulário alterado",
         in_app_message="{{actorName}} alterou o formulário \"{{eventName}}\".",
         notify_admin=True,
         notify_gerente=True,
-        send_email=False,
+        send_email=True,
         skip_actor=False,
     ),
     USER_CREATED: EventSpec(
@@ -231,6 +239,7 @@ EVENTS: dict[str, EventSpec] = {
             "{{actorName}} criou o usuário {{eventName}}.\n\n"
             "E-mail: {{recipient}}\n"
             "Data: {{date}}"
+            f"{ACCESS_LINK}"
         ),
         in_app_title="Novo usuário criado",
         in_app_message="{{actorName}} criou {{eventName}}.",
@@ -247,11 +256,12 @@ EVENTS: dict[str, EventSpec] = {
         default_body=(
             "{{actorName}} alterou o usuário {{eventName}}.\n\n"
             "Data: {{date}}"
+            f"{ACCESS_LINK}"
         ),
         in_app_title="Usuário alterado",
         in_app_message="{{actorName}} alterou {{eventName}}.",
         notify_admin=True,
-        send_email=False,
+        send_email=True,
         skip_actor=False,
     ),
     USER_DELETED: EventSpec(
@@ -263,6 +273,7 @@ EVENTS: dict[str, EventSpec] = {
         default_body=(
             "{{actorName}} excluiu o usuário {{eventName}}.\n\n"
             "Data: {{date}}"
+            f"{ACCESS_LINK}"
         ),
         in_app_title="Usuário excluído",
         in_app_message="{{actorName}} excluiu {{eventName}}.",
@@ -280,6 +291,7 @@ EVENTS: dict[str, EventSpec] = {
             "{{actorName}} salvou uma alteração no layout da plataforma.\n\n"
             "Detalhe: {{eventName}}\n"
             "Data: {{date}}"
+            f"{ACCESS_LINK}"
         ),
         in_app_title="Alteração no layout salva",
         in_app_message="{{actorName}} alterou {{eventName}}.",

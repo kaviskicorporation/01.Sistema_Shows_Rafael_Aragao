@@ -124,7 +124,7 @@ const DRAWER_TABS: {
   },
   {
     id: "notes",
-    label: "Anotações",
+    label: "Notas",
     Icon: StickyNote,
     active: "bg-amber-400 text-ink",
     idle: "text-amber-300/70 hover:bg-amber-400/10 hover:text-amber-200",
@@ -145,7 +145,7 @@ const DRAWER_TABS: {
   },
   {
     id: "emails",
-    label: "Troca de e-mails",
+    label: "E-mails",
     Icon: Mail,
     active: "bg-indigo-400 text-ink",
     idle: "text-indigo-300/70 hover:bg-indigo-400/10 hover:text-indigo-200",
@@ -897,7 +897,7 @@ export default function CrmPage() {
         >
           <aside
             onClick={(e) => e.stopPropagation()}
-            className="crm-drawer noise-bg relative flex h-[min(96dvh,100%)] w-full max-w-xl flex-col overflow-hidden rounded-t-3xl border border-gold/20 pb-[env(safe-area-inset-bottom)] shadow-2xl sm:h-full sm:rounded-none sm:border-y-0 sm:border-l sm:border-r-0"
+            className="crm-drawer noise-bg relative flex h-[min(96dvh,100%)] w-full max-w-2xl flex-col overflow-hidden rounded-t-3xl border border-gold/20 pb-[env(safe-area-inset-bottom)] shadow-2xl sm:h-full sm:max-w-[42rem] sm:rounded-none sm:border-y-0 sm:border-l sm:border-r-0"
           >
             <div
               className="pointer-events-none absolute inset-0 z-0 bg-grid-soft opacity-[0.18]"
@@ -964,222 +964,231 @@ export default function CrmPage() {
               </div>
             </header>
 
-            <div className="relative z-[1] flex min-h-0 flex-1 flex-col gap-2 px-3 pb-3 pt-2 sm:px-4">
-              <div className="crm-panel shrink-0 space-y-2.5 p-2.5">
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-white/40">
-                      Status
-                    </p>
-                    <ThemedSelect
-                      compact
-                      disabled={!writable}
-                      value={String(selected.column)}
-                      onChange={(v) => void changeStatus(Number(v))}
-                      options={columns.map((c) => ({
-                        value: String(c.id),
-                        label: c.is_won
-                          ? `${c.title} · Ganho`
-                          : c.is_lost
-                            ? `${c.title} · Perda`
-                            : c.title,
-                      }))}
-                    />
-                  </div>
-                  <label className="text-[10px] font-semibold uppercase tracking-wider text-white/40">
-                    Follow-up
-                    <input
-                      type="date"
-                      disabled={!writable}
-                      value={selected.follow_up_date || ""}
-                      onChange={(e) =>
-                        updateCard({ follow_up_date: e.target.value || null })
-                      }
-                      className={`${inputCls} mt-1 py-1.5`}
-                    />
-                  </label>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <div className="grid min-w-0 flex-1 grid-cols-3 gap-1">
-                    {(["alta", "media", "baixa"] as const).map((p) => (
-                      <button
-                        key={p}
-                        type="button"
+            <div className="relative z-[1] min-h-0 flex-1 overflow-y-auto overscroll-y-auto px-3 pb-4 pt-2 crm-scroll sm:px-4">
+              <div className="flex flex-col gap-3">
+                <div className="crm-panel space-y-2.5 p-2.5">
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-white/40">
+                        Status
+                      </p>
+                      <ThemedSelect
+                        compact
                         disabled={!writable}
-                        onClick={() => updateCard({ priority: p })}
-                        className={`inline-flex items-center justify-center gap-1.5 rounded-lg border px-1.5 py-1.5 text-center text-[10px] font-bold uppercase tracking-wide transition ${
-                          selected.priority === p
-                            ? PRIORITY_META[p].btn
-                            : PRIORITY_META[p].idle
-                        }`}
-                      >
-                        <span
-                          className={`h-1.5 w-1.5 rounded-full ${PRIORITY_META[p].dot}`}
-                        />
-                        {PRIORITY_META[p].label}
-                      </button>
-                    ))}
-                  </div>
-                  <CardColorPicker
-                    value={selected.color || ""}
-                    disabled={!writable}
-                    onChange={(color) => updateCard({ color })}
-                  />
-                </div>
-
-                <div className="flex flex-wrap items-center gap-1.5">
-                  {labels.map((l) => {
-                    const on = selected.labels.some((x) => x.id === l.id);
-                    return (
-                      <button
-                        key={l.id}
-                        type="button"
-                        disabled={!writable}
-                        onClick={() => toggleLabel(l.id)}
-                        className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold transition ${
-                          on ? "border-transparent text-ink" : "border-white/12 text-white/50 hover:text-white/80"
-                        }`}
-                        style={
-                          on
-                            ? { background: l.color, color: "#111" }
-                            : undefined
-                        }
-                      >
-                        {l.name}
-                      </button>
-                    );
-                  })}
-                  {writable && (
-                    <button
-                      type="button"
-                      onClick={() => setLabelModal(true)}
-                      className="rounded-full px-2 py-0.5 text-[10px] text-white/35 hover:text-gold"
-                    >
-                      + etiqueta
-                    </button>
-                  )}
-                </div>
-
-                {selected.lead.message && (
-                  <details className="group border-t border-white/6 pt-2">
-                    <summary className="flex cursor-pointer list-none items-center justify-between gap-2 text-[11px] font-medium text-white/50 [&::-webkit-details-marker]:hidden">
-                      Mensagem do lead
-                      <ChevronDown
-                        size={14}
-                        className="shrink-0 transition group-open:rotate-180"
+                        value={String(selected.column)}
+                        onChange={(v) => void changeStatus(Number(v))}
+                        options={columns.map((c) => ({
+                          value: String(c.id),
+                          label: c.is_won
+                            ? `${c.title} · Ganho`
+                            : c.is_lost
+                              ? `${c.title} · Perda`
+                              : c.title,
+                        }))}
                       />
-                    </summary>
-                    <p className="mt-2 text-sm leading-relaxed text-white/70">
-                      {selected.lead.message}
-                    </p>
-                  </details>
-                )}
-              </div>
+                    </div>
+                    <label className="text-[10px] font-semibold uppercase tracking-wider text-white/40">
+                      Follow-up
+                      <input
+                        type="date"
+                        disabled={!writable}
+                        value={selected.follow_up_date || ""}
+                        onChange={(e) =>
+                          updateCard({ follow_up_date: e.target.value || null })
+                        }
+                        className={`${inputCls} mt-1 py-1.5`}
+                      />
+                    </label>
+                  </div>
 
-              {selected.loss_reason && (
-                <div className="shrink-0 rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-2 text-xs text-white/70">
-                  Motivo da perda: {selected.loss_reason}
-                </div>
-              )}
-
-              <div className="crm-panel shrink-0 p-2.5">
-                <ChecklistBlock
-                  items={selected.checklist}
-                  writable={writable}
-                  onToggle={toggleCheck}
-                  onRemove={removeChecklist}
-                  onAdd={addChecklist}
-                />
-              </div>
-
-              <div className="crm-activity-card relative flex min-h-0 flex-1 flex-col">
-                <div className="relative z-[1] flex shrink-0 justify-center px-3 pt-2.5">
-                  <div className="inline-flex max-w-full gap-0.5 overflow-x-auto rounded-full bg-black/40 p-1">
-                    {DRAWER_TABS.map((tab) => {
-                      const count =
-                        tab.id === "chat"
-                          ? selected.comments?.length || 0
-                          : tab.id === "notes"
-                            ? selected.notes?.length || 0
-                            : tab.id === "files"
-                              ? selected.attachments?.length || 0
-                              : tab.id === "emails"
-                                ? selected.emails?.length || 0
-                                : selected.history?.length || 0;
-                      const on = drawerTab === tab.id;
-                      return (
+                  <div className="flex items-center gap-2">
+                    <div className="grid min-w-0 flex-1 grid-cols-3 gap-1">
+                      {(["alta", "media", "baixa"] as const).map((p) => (
                         <button
-                          key={tab.id}
+                          key={p}
                           type="button"
-                          onClick={() => setDrawerTab(tab.id)}
-                          className={`inline-flex items-center justify-center gap-1.5 rounded-full px-2.5 py-1.5 text-[11px] font-semibold whitespace-nowrap transition sm:px-3 ${
-                            on ? tab.active : tab.idle
+                          disabled={!writable}
+                          onClick={() => updateCard({ priority: p })}
+                          className={`inline-flex items-center justify-center gap-1.5 rounded-lg border px-1.5 py-1.5 text-center text-[10px] font-bold uppercase tracking-wide transition ${
+                            selected.priority === p
+                              ? PRIORITY_META[p].btn
+                              : PRIORITY_META[p].idle
                           }`}
                         >
-                          <tab.Icon size={13} />
-                          {tab.label}
-                          {count > 0 && (
-                            <span className={on ? "opacity-70" : "opacity-50"}>
-                              {tab.id === "files" ? `${count}/5` : count}
-                            </span>
-                          )}
+                          <span
+                            className={`h-1.5 w-1.5 rounded-full ${PRIORITY_META[p].dot}`}
+                          />
+                          {PRIORITY_META[p].label}
+                        </button>
+                      ))}
+                    </div>
+                    <CardColorPicker
+                      value={selected.color || ""}
+                      disabled={!writable}
+                      onChange={(color) => updateCard({ color })}
+                    />
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    {labels.map((l) => {
+                      const on = selected.labels.some((x) => x.id === l.id);
+                      return (
+                        <button
+                          key={l.id}
+                          type="button"
+                          disabled={!writable}
+                          onClick={() => toggleLabel(l.id)}
+                          className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold transition ${
+                            on
+                              ? "border-transparent text-ink"
+                              : "border-white/12 text-white/50 hover:text-white/80"
+                          }`}
+                          style={
+                            on
+                              ? { background: l.color, color: "#111" }
+                              : undefined
+                          }
+                        >
+                          {l.name}
                         </button>
                       );
                     })}
+                    {writable && (
+                      <button
+                        type="button"
+                        onClick={() => setLabelModal(true)}
+                        className="rounded-full px-2 py-0.5 text-[10px] text-white/35 hover:text-gold"
+                      >
+                        + etiqueta
+                      </button>
+                    )}
                   </div>
+
+                  {selected.lead.message && (
+                    <details className="group border-t border-white/6 pt-2">
+                      <summary className="flex cursor-pointer list-none items-center justify-between gap-2 text-[11px] font-medium text-white/50 [&::-webkit-details-marker]:hidden">
+                        Mensagem do lead
+                        <ChevronDown
+                          size={14}
+                          className="shrink-0 transition group-open:rotate-180"
+                        />
+                      </summary>
+                      <p className="mt-2 text-sm leading-relaxed text-white/70">
+                        {selected.lead.message}
+                      </p>
+                    </details>
+                  )}
                 </div>
 
-                <div className="relative z-[1] flex min-h-0 flex-1 flex-col py-2 pl-3 pr-2 sm:pl-4">
-                  {drawerTab === "chat" && (
-                    <ChatPanel
-                      comments={selected.comments}
-                      currentUser={user?.username || ""}
-                      currentUserId={user?.id}
-                      isAdmin={user?.role === "admin"}
-                      writable={writable}
-                      onSend={addComment}
-                      onEdit={editComment}
-                      onRemove={removeComment}
-                    />
-                  )}
+                {selected.loss_reason && (
+                  <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-2 text-xs text-white/70">
+                    Motivo da perda: {selected.loss_reason}
+                  </div>
+                )}
 
-                  {drawerTab === "notes" && (
-                    <NotesPanel
-                      notes={selected.notes || []}
-                      currentUserId={user?.id}
-                      isAdmin={user?.role === "admin"}
-                      writable={writable}
-                      onAdd={addNote}
-                      onEdit={editNote}
-                      onPin={togglePinNote}
-                      onRemove={removeNote}
-                    />
-                  )}
+                <div className="crm-panel p-2.5">
+                  <ChecklistBlock
+                    items={selected.checklist}
+                    writable={writable}
+                    onToggle={toggleCheck}
+                    onRemove={removeChecklist}
+                    onAdd={addChecklist}
+                  />
+                </div>
 
-                  {drawerTab === "files" && (
-                    <AttachmentsPanel
-                      attachments={selected.attachments || []}
-                      writable={writable}
-                      onUpload={uploadAttachment}
-                      onRemove={removeAttachment}
-                    />
-                  )}
+                <div className="crm-activity-card relative flex flex-col">
+                  <div className="relative z-[1] flex shrink-0 px-2.5 pt-2.5 sm:px-3">
+                    <div className="grid w-full grid-cols-5 gap-0.5 rounded-2xl bg-black/40 p-1">
+                      {DRAWER_TABS.map((tab) => {
+                        const count =
+                          tab.id === "chat"
+                            ? selected.comments?.length || 0
+                            : tab.id === "notes"
+                              ? selected.notes?.length || 0
+                              : tab.id === "files"
+                                ? selected.attachments?.length || 0
+                                : tab.id === "emails"
+                                  ? selected.emails?.length || 0
+                                  : selected.history?.length || 0;
+                        const on = drawerTab === tab.id;
+                        return (
+                          <button
+                            key={tab.id}
+                            type="button"
+                            onClick={() => setDrawerTab(tab.id)}
+                            title={tab.label}
+                            className={`inline-flex min-w-0 flex-col items-center justify-center gap-0.5 rounded-xl px-1 py-1.5 text-center text-[10px] font-semibold leading-tight transition sm:flex-row sm:gap-1 sm:px-1.5 sm:text-[11px] ${
+                              on ? tab.active : tab.idle
+                            }`}
+                          >
+                            <tab.Icon size={13} className="shrink-0" />
+                            <span className="max-w-full truncate">{tab.label}</span>
+                            {count > 0 && (
+                              <span
+                                className={`shrink-0 tabular-nums ${
+                                  on ? "opacity-70" : "opacity-50"
+                                }`}
+                              >
+                                {tab.id === "files" ? `${count}/5` : count}
+                              </span>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
 
-                  {drawerTab === "history" && (
-                    <HistoryPanel history={selected.history || []} />
-                  )}
+                  <div className="relative z-[1] flex flex-col py-2 pl-3 pr-2 sm:pl-4">
+                    {drawerTab === "chat" && (
+                      <ChatPanel
+                        comments={selected.comments}
+                        currentUser={user?.username || ""}
+                        currentUserId={user?.id}
+                        isAdmin={user?.role === "admin"}
+                        writable={writable}
+                        onSend={addComment}
+                        onEdit={editComment}
+                        onRemove={removeComment}
+                      />
+                    )}
 
-                  {drawerTab === "emails" && (
-                    <EmailThreadPanel
-                      emails={selected.emails || []}
-                      leadEmail={selected.lead.email}
-                      writable={writable}
-                      sending={emailSending}
-                      onSend={sendLeadEmail}
-                      onSync={syncLeadEmails}
-                    />
-                  )}
+                    {drawerTab === "notes" && (
+                      <NotesPanel
+                        notes={selected.notes || []}
+                        currentUserId={user?.id}
+                        isAdmin={user?.role === "admin"}
+                        writable={writable}
+                        onAdd={addNote}
+                        onEdit={editNote}
+                        onPin={togglePinNote}
+                        onRemove={removeNote}
+                      />
+                    )}
+
+                    {drawerTab === "files" && (
+                      <AttachmentsPanel
+                        attachments={selected.attachments || []}
+                        writable={writable}
+                        onUpload={uploadAttachment}
+                        onRemove={removeAttachment}
+                      />
+                    )}
+
+                    {drawerTab === "history" && (
+                      <HistoryPanel history={selected.history || []} />
+                    )}
+
+                    {drawerTab === "emails" && (
+                      <EmailThreadPanel
+                        emails={selected.emails || []}
+                        leadEmail={selected.lead.email}
+                        writable={writable}
+                        sending={emailSending}
+                        onSend={sendLeadEmail}
+                        onSync={syncLeadEmails}
+                      />
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
@@ -1835,11 +1844,11 @@ function ChecklistBlock({
           />
         </div>
       )}
-      <ul className="max-h-28 space-y-1 overflow-y-auto crm-scroll">
+      <ul className="space-y-1.5">
         {items.map((item) => (
           <li
             key={item.id}
-            className="group flex items-center gap-2.5 rounded-xl border border-white/8 bg-white/[0.03] px-2.5 py-2 text-sm"
+            className="group flex items-center gap-2.5 rounded-xl border border-white/8 bg-white/[0.03] px-2.5 py-2.5 text-sm"
           >
             <button
               type="button"
@@ -1947,8 +1956,8 @@ function NotesPanel({
   }
 
   return (
-    <section className="flex h-full min-h-0 flex-col">
-      <div className="mb-2 flex items-center gap-2 px-0.5">
+    <section className="flex flex-col">
+      <div className="mb-2 flex shrink-0 items-center gap-2 px-0.5">
         <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-amber-400/15 text-amber-300">
           <StickyNote size={14} />
         </span>
@@ -1957,10 +1966,10 @@ function NotesPanel({
           <p className="text-[10px] text-white/35">Só o time vê · pin as importantes</p>
         </div>
       </div>
-      <div ref={listRef} className="min-h-0 flex-1 space-y-2.5 overflow-y-auto crm-scroll">
+      <div ref={listRef} className="space-y-2.5">
         {notes.length === 0 && (
-          <div className="flex h-full min-h-[140px] flex-col items-center justify-center gap-2 rounded-2xl bg-amber-400/[0.06] text-center">
-            <StickyNote size={22} className="text-amber-300/70" />
+          <div className="flex flex-col items-center justify-center gap-2 rounded-2xl bg-amber-400/[0.06] px-3 py-5 text-center">
+            <StickyNote size={20} className="text-amber-300/70" />
             <p className="max-w-[15rem] text-xs text-white/45">
               Lembretes do lead: valores, prazos, o que combinou no WhatsApp.
             </p>
@@ -2155,8 +2164,8 @@ function ChatPanel({
   }
 
   return (
-    <section className="flex h-full min-h-0 flex-col">
-      <div className="mb-2 flex items-center gap-2 px-0.5">
+    <section className="flex flex-col">
+      <div className="mb-2 flex shrink-0 items-center gap-2 px-0.5">
         <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-sky-400/15 text-sky-300">
           <MessageSquare size={14} />
         </span>
@@ -2165,10 +2174,10 @@ function ChatPanel({
           <p className="text-[10px] text-white/35">Enter envia · Shift+Enter nova linha</p>
         </div>
       </div>
-      <div className="min-h-0 flex-1 space-y-2.5 overflow-y-auto crm-scroll">
+      <div className="space-y-2.5">
         {comments.length === 0 && (
-          <div className="flex h-full min-h-[140px] flex-col items-center justify-center gap-2 rounded-2xl bg-sky-400/[0.06] text-center">
-            <MessageSquare size={22} className="text-sky-300/70" />
+          <div className="flex flex-col items-center justify-center gap-2 rounded-2xl bg-sky-400/[0.06] px-3 py-5 text-center">
+            <MessageSquare size={20} className="text-sky-300/70" />
             <p className="max-w-[16rem] text-xs text-white/45">
               Alinhe o comercial aqui: o que falou, o que falta, próximo passo.
             </p>
@@ -2364,7 +2373,7 @@ function AttachmentsPanel({
   }
 
   return (
-    <section className="flex h-full min-h-0 flex-col space-y-3 overflow-y-auto crm-scroll">
+    <section className="flex flex-col space-y-3">
       <p className="text-xs text-white/40">
         Até 5 arquivos por card (PDF, imagens, docs…).
       </p>
@@ -2402,8 +2411,8 @@ function AttachmentsPanel({
           </li>
         ))}
         {attachments.length === 0 && (
-          <li className="flex flex-1 flex-col items-center justify-center gap-2 py-10 text-center text-xs text-white/40">
-            <Paperclip size={20} className="text-gold/50" />
+          <li className="flex flex-col items-center justify-center gap-2 rounded-2xl bg-emerald-400/[0.06] px-3 py-5 text-center text-xs text-white/40">
+            <Paperclip size={18} className="text-gold/50" />
             Nenhum anexo
           </li>
         )}
@@ -2520,14 +2529,14 @@ function historyKind(text: string) {
 
 function HistoryPanel({ history }: { history: CardItem["history"] }) {
   return (
-    <section className="h-full min-h-0 overflow-y-auto crm-scroll">
+    <section className="flex flex-col">
       {history.length === 0 && (
-        <div className="flex h-full min-h-[140px] flex-col items-center justify-center gap-2 text-center">
-          <History size={22} className="text-violet-300/50" />
+        <div className="flex flex-col items-center justify-center gap-2 rounded-2xl bg-violet-400/[0.06] px-3 py-5 text-center">
+          <History size={20} className="text-violet-300/50" />
           <p className="text-xs text-white/40">Sem eventos ainda.</p>
         </div>
       )}
-      <ul className="space-y-1.5 pr-1">
+      <ul className="space-y-1.5">
         {history.map((h) => {
           const { Icon, label, wrap, icon, tag } = historyKind(h.text);
           return (

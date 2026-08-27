@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 import threading
 
-from django.db import close_old_connections
+from django.db import close_old_connections, transaction
 
 from core.mailconf import get_smtp_config, smtp_ready
 from core.mailer import MailSendError, send_email
@@ -111,6 +111,9 @@ def notify_new_lead(lead, card) -> None:
         finally:
             close_old_connections()
 
-    threading.Thread(
-        target=run, daemon=True, name=f"lead-mail-{lead_id}"
-    ).start()
+    def start():
+        threading.Thread(
+            target=run, daemon=False, name=f"lead-mail-{lead_id}"
+        ).start()
+
+    transaction.on_commit(start)

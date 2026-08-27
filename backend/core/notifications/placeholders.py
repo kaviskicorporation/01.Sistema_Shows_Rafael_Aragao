@@ -19,7 +19,7 @@ def actor_label(user) -> str:
 
 
 def render(template: str, spec: EventSpec, values: dict[str, str]) -> str:
-    allowed = set(spec.placeholders)
+    allowed = set(spec.placeholders) | {"link"}
     data = {k: str(v) if v is not None else "" for k, v in (values or {}).items()}
 
     def repl(match: re.Match) -> str:

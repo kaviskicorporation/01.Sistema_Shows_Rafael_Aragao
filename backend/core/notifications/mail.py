@@ -104,16 +104,15 @@ def send_notification_email(
     """Envia aviso externo. NÃO registra CardEmailMessage."""
     if not smtp_ready():
         raise MailSendError("SMTP não configurado.")
+    cta = admin_url(link)
     ctx = dict(values)
     ctx.setdefault("recipient", to)
+    ctx["link"] = cta
     subject = render(subject_tpl, spec, ctx).strip() or spec.label
     body_text = render(body_tpl, spec, ctx).strip()
-    cta = admin_url(link)
-    if "Acesse a plataforma" not in body_text and "plataforma" not in body_text.lower():
-        body_text = f"{body_text}\n\nAcesse a plataforma:\n{cta}".strip()
-    elif cta not in body_text:
-        body_text = f"{body_text}\n\n{cta}"
-    html_body = _html_body(subject, render(body_tpl, spec, ctx).strip(), cta)
+    if cta not in body_text:
+        body_text = f"{body_text}\n\nPara acessar, use o link:\n{cta}".strip()
+    html_body = _html_body(subject, body_text, cta)
     return send_email(
         to=to,
         subject=subject[:200],
@@ -121,8 +120,5 @@ def send_notification_email(
         body_html=html_body,
         extra_headers={
             NOTIF_HEADER: "1",
-            "Auto-Submitted": "auto-generated",
-            "X-Auto-Response-Suppress": "All",
-            "Precedence": "bulk",
         },
     )

@@ -225,6 +225,8 @@ LOGGING = {
     "root": {"handlers": ["console"], "level": "INFO"},
     "loggers": {
         "core.mailer": {"level": "INFO", "handlers": ["console"], "propagate": False},
+        "core.notifications": {"level": "INFO", "handlers": ["console"], "propagate": False},
+        "core.notifications.service": {"level": "INFO", "handlers": ["console"], "propagate": False},
         "crm.lead_mail": {"level": "INFO", "handlers": ["console"], "propagate": False},
         "crm.imap_inbox": {"level": "INFO", "handlers": ["console"], "propagate": False},
     },

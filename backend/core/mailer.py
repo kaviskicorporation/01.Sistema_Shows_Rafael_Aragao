@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 import smtplib
 import ssl
+import threading
 import uuid
 from email.message import EmailMessage
 from email.utils import formataddr, formatdate, make_msgid
@@ -15,6 +16,7 @@ from django.conf import settings
 from .mailconf import get_smtp_config, smtp_ready
 
 logger = logging.getLogger(__name__)
+_smtp_lock = threading.Lock()
 
 
 class MailSendError(Exception):
@@ -106,20 +108,21 @@ def send_email(
         context.check_hostname = False
         context.verify_mode = ssl.CERT_NONE
     try:
-        with smtplib.SMTP(
-            cfg.host,
-            cfg.port,
-            timeout=30,
-            local_hostname=cfg.host,
-        ) as smtp:
-            smtp.ehlo()
-            if cfg.use_tls:
-                smtp.starttls(context=context)
+        with _smtp_lock:
+            with smtplib.SMTP(
+                cfg.host,
+                cfg.port,
+                timeout=30,
+                local_hostname=cfg.host,
+            ) as smtp:
                 smtp.ehlo()
-            smtp.login(cfg.user, cfg.password)
-            refused = smtp.send_message(msg, from_addr=cfg.user, to_addrs=[to])
-            if refused:
-                raise MailSendError("Servidor recusou o destinatário.")
+                if cfg.use_tls:
+                    smtp.starttls(context=context)
+                    smtp.ehlo()
+                smtp.login(cfg.user, cfg.password)
+                refused = smtp.send_message(msg, from_addr=cfg.user, to_addrs=[to])
+                if refused:
+                    raise MailSendError("Servidor recusou o destinatário.")
     except MailSendError:
         raise
     except smtplib.SMTPAuthenticationError as exc:

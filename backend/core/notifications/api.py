@@ -14,7 +14,7 @@ from core.models import (
 )
 from core.notifications.events import catalog_payload, get_spec
 from core.notifications.mail import mailbox_addresses
-from core.notifications.service import ensure_preferences
+from core.notifications.service import ensure_preferences, subscribe_recipient
 from core.serializers import (
     NotificationPreferenceSerializer,
     NotificationRecipientSerializer,
@@ -127,6 +127,15 @@ class NotificationRecipientViewSet(viewsets.ModelViewSet):
     permission_classes = [ModulePermission]
     module = "notifications"
     pagination_class = None
+
+    def perform_create(self, serializer):
+        instance = serializer.save()
+        subscribe_recipient(instance.pk)
+
+    def perform_update(self, serializer):
+        instance = serializer.save()
+        if instance.is_primary and instance.is_active:
+            subscribe_recipient(instance.pk)
 
     def perform_destroy(self, instance):
         pk = instance.pk

@@ -668,17 +668,19 @@ select:not(.raw-select) optgroup {
   mask-image: linear-gradient(180deg, #000 0%, transparent 70%);
 }
 .crm-scroll {
-  scrollbar-gutter: stable;
-  padding-right: 0.7rem;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: auto;
+  touch-action: pan-y;
+  padding-right: 0.35rem;
   scrollbar-width: thin;
   scrollbar-color: color-mix(in srgb, var(--theme-primary) 28%, transparent)
     transparent;
 }
 .crm-scroll::-webkit-scrollbar {
-  width: 6px;
+  width: 8px;
 }
 .crm-scroll::-webkit-scrollbar-thumb {
-  background: color-mix(in srgb, var(--theme-primary) 32%, transparent);
+  background: color-mix(in srgb, var(--theme-primary) 40%, transparent);
   border-radius: 999px;
   border: 2px solid transparent;
   background-clip: padding-box;

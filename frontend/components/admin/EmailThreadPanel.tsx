@@ -202,13 +202,13 @@ export default function EmailThreadPanel({
 
   const panel = (
     <section
-      className={`flex min-h-0 flex-col ${
+      className={`flex flex-col ${
         expanded
-          ? "h-full rounded-2xl border border-indigo-300/20 bg-[#141414] p-4"
-          : "h-full"
+          ? "h-full min-h-0 overflow-hidden rounded-2xl border border-indigo-300/20 bg-[#141414] p-4"
+          : ""
       }`}
     >
-      <div className="mb-2 flex items-center gap-2 px-0.5">
+      <div className="mb-2 flex shrink-0 items-center gap-2 px-0.5">
         <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-indigo-400/15 text-indigo-300">
           <Mail size={14} />
         </span>
@@ -243,19 +243,21 @@ export default function EmailThreadPanel({
       </div>
 
       {syncMsg && (
-        <p className="mb-2 rounded-xl bg-indigo-400/10 px-2.5 py-1.5 text-[10px] text-indigo-100">
+        <p className="mb-2 shrink-0 rounded-xl bg-indigo-400/10 px-2.5 py-1.5 text-[10px] text-indigo-100">
           {syncMsg}
         </p>
       )}
 
       <div
-        className={`min-h-0 flex-1 space-y-2.5 overflow-y-auto crm-scroll ${
-          expanded ? "pr-1" : ""
-        }`}
+        className={
+          expanded
+            ? "min-h-0 flex-1 space-y-2.5 overflow-y-auto overscroll-y-auto pr-0.5 crm-scroll"
+            : "space-y-2.5"
+        }
       >
         {emails.length === 0 && (
-          <div className="flex h-full min-h-[140px] flex-col items-center justify-center gap-2 rounded-2xl bg-indigo-400/[0.06] text-center">
-            <Mail size={22} className="text-indigo-300/70" />
+          <div className="flex flex-col items-center justify-center gap-2 rounded-2xl bg-indigo-400/[0.06] px-3 py-5 text-center">
+            <Mail size={20} className="text-indigo-300/70" />
             <p className="max-w-[16rem] text-xs text-white/45">
               Nenhuma troca ainda. Ao cadastrar, a confirmação entra aqui como
               envio da equipe. Respostas do lead aparecem do outro lado.
@@ -338,7 +340,7 @@ export default function EmailThreadPanel({
                       className="block w-full cursor-zoom-in text-left"
                       title="Abrir e-mail em pop-up"
                     >
-                      <div className="relative max-h-24 overflow-hidden">
+                      <div className="relative max-h-28 overflow-hidden">
                         <MessageBody message={m} compact />
                         <div className="pointer-events-none absolute inset-x-0 bottom-0 h-8 bg-gradient-to-t from-black/50 to-transparent" />
                       </div>
@@ -370,7 +372,7 @@ export default function EmailThreadPanel({
       {writable && (
         <form
           onSubmit={(e) => void submit(e)}
-          className="mt-2 space-y-2 rounded-2xl bg-indigo-400/10 p-2"
+          className="mt-2 shrink-0 space-y-2 rounded-2xl bg-indigo-400/10 p-2.5"
         >
           <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center">
             <ThemedSelect
@@ -424,7 +426,9 @@ export default function EmailThreadPanel({
                 data-placeholder="Corpo do e-mail em HTML"
                 onInput={() => setHtmlReady(Boolean(htmlText()))}
                 className={`email-html overflow-y-auto rounded-xl border-0 bg-transparent px-2 py-2 text-sm outline-none empty:before:text-white/30 empty:before:content-[attr(data-placeholder)] ${
-                  expanded ? "min-h-[220px]" : "min-h-[96px] max-h-48"
+                  expanded
+                    ? "min-h-[180px] max-h-[300px]"
+                    : "min-h-[96px] max-h-[160px]"
                 }`}
               />
             </div>
@@ -432,10 +436,12 @@ export default function EmailThreadPanel({
             <textarea
               value={body}
               onChange={(e) => setBody(e.target.value)}
-              rows={expanded ? 10 : 3}
+              rows={expanded ? 8 : 4}
               placeholder="Corpo do e-mail"
-              className={`w-full resize-y rounded-xl border-0 bg-transparent px-2 py-2 text-sm outline-none ${
-                expanded ? "min-h-[220px]" : "max-h-48 min-h-[72px]"
+              className={`w-full resize-none overflow-y-auto rounded-xl border-0 bg-transparent px-2 py-2 text-sm outline-none ${
+                expanded
+                  ? "min-h-[180px] max-h-[300px]"
+                  : "min-h-[96px] max-h-[160px]"
               }`}
             />
           )}

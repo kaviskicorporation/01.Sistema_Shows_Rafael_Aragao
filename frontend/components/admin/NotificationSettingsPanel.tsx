@@ -124,29 +124,35 @@ export default function NotificationSettingsPanel() {
   }
 
   function toggleRecipient(key: string, recipientId: number) {
-    setEvents((prev) =>
-      prev.map((row) => {
+    setEvents((prev) => {
+      const next = prev.map((row) => {
         if (row.key !== key) return row;
         const has = row.email_recipient_ids.includes(recipientId);
         const ids = has
           ? row.email_recipient_ids.filter((id) => id !== recipientId)
           : [...row.email_recipient_ids, recipientId];
         return { ...row, email_recipient_ids: ids, send_email: ids.length > 0 };
-      }),
-    );
+      });
+      if (writable) {
+        window.setTimeout(() => {
+          void persistMatrix(next);
+        }, 0);
+      }
+      return next;
+    });
   }
 
-  async function saveMatrix() {
+  async function persistMatrix(rows: NotificationEventSetting[]) {
     setSaving(true);
     setErr("");
     try {
       await api.put("/notification-settings/preferences", {
-        preferences: events.map((e) => ({
+        preferences: rows.map((e) => ({
           event_type: e.key,
           notify_admin: e.notify_admin,
           notify_gerente: e.notify_gerente,
-          notify_comercial: e.notify_comercial,
           notify_visualizador: e.notify_visualizador,
+          notify_comercial: e.notify_comercial,
           send_email: (e.email_recipient_ids || []).length > 0,
           email_recipient_ids: e.email_recipient_ids || [],
         })),
@@ -157,6 +163,10 @@ export default function NotificationSettingsPanel() {
     } finally {
       setSaving(false);
     }
+  }
+
+  async function saveMatrix() {
+    await persistMatrix(events);
   }
 
   async function addRecipient() {
@@ -171,7 +181,7 @@ export default function NotificationSettingsPanel() {
     setSaving(true);
     setErr("");
     try {
-      const created = await api.post<NotificationRecipient>(
+      await api.post<NotificationRecipient>(
         "/notification-recipients",
         {
           email,
@@ -179,9 +189,9 @@ export default function NotificationSettingsPanel() {
           is_active: true,
         },
       );
-      setRecipients((prev) => [...prev, created]);
       setAddEmail("");
-      flash("Destinatário adicionado.");
+      await load();
+      flash("Destinatário adicionado e associado a todos os avisos.");
     } catch (e) {
       apiErr(e);
     } finally {
@@ -397,8 +407,9 @@ export default function NotificationSettingsPanel() {
         </div>
         <p className="mb-3 text-xs text-white/45">
           Os perfis recebem o aviso no sino do /admin. Os e-mails à direita
-          recebem o mesmo aviso na caixa pessoal — marque só quem deve receber
-          cada tipo.
+          recebem o mesmo aviso na caixa pessoal, com o link para acessar. Um
+          destinatário novo entra automaticamente em todos os eventos. Marque ou
+          desmarque e a matriz é salva na hora.
         </p>
         <table className="w-full min-w-[860px] text-left text-sm">
           <thead>

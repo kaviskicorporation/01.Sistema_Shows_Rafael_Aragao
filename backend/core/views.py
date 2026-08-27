@@ -19,6 +19,9 @@ from core.demo_data import DEMO_LEADS
 from crm.models import Card, CardHistory, KanbanColumn, Label, Lead
 from events.models import Event
 
+from .email_defaults import KAVISKI_IMAP, KAVISKI_SMTP
+from .mailconf import get_imap_config, get_smtp_config, imap_ready, smtp_ready
+from .mailer import MailSendError, send_email
 from .models import AuditLog, EmailSettings, Notification, SiteConfig, Sponsor, FaqItem
 from .serializers import (
     AuditLogSerializer,
@@ -641,7 +644,7 @@ class DashboardPDFView(APIView):
 
 
 class EmailSettingsView(APIView):
-    """GET/PUT da config SMTP/IMAP. Nunca devolve credenciais internas nem senha."""
+    """GET/PUT da config SMTP/IMAP. Senha nunca volta em claro — só bolinhas na UI."""
 
     permission_classes = [ModulePermission]
     module = "config"
@@ -651,10 +654,53 @@ class EmailSettingsView(APIView):
         if row.team_to:
             row.team_to = ""
             row.save(update_fields=["team_to"])
+        smtp_ok = row.smtp_package_complete()
+        imap_ok = row.imap_package_complete()
+        # Se ainda não há override no DB, mostra o padrão Kaviski (sem senha em claro)
+        smtp = {
+            "host": row.smtp_host if smtp_ok else KAVISKI_SMTP["host"],
+            "port": str(row.smtp_port) if smtp_ok and row.smtp_port else str(KAVISKI_SMTP["port"]),
+            "user": row.smtp_user if smtp_ok else KAVISKI_SMTP["user"],
+            "from_email": row.smtp_from if smtp_ok else KAVISKI_SMTP["from_email"],
+            "password_set": bool((row.smtp_password if smtp_ok else KAVISKI_SMTP["password"])),
+            "use_user": smtp_ok
+            and bool(row.smtp_user)
+            and row.smtp_user.strip() == (row.smtp_from or "").strip(),
+        }
+        imap = {
+            "host": row.imap_host if imap_ok else KAVISKI_IMAP["host"],
+            "port": str(row.imap_port) if imap_ok and row.imap_port else str(KAVISKI_IMAP["port"]),
+            "user": row.imap_user if imap_ok else KAVISKI_IMAP["user"],
+            "from_email": row.imap_user if imap_ok else KAVISKI_IMAP["user"],
+            "password_set": bool((row.imap_password if imap_ok else KAVISKI_IMAP["password"])),
+            "use_user": True,
+            "ssl": bool(row.imap_ssl) if imap_ok else bool(KAVISKI_IMAP["ssl"]),
+            "allow_self_signed": bool(row.imap_allow_self_signed)
+            if imap_ok
+            else bool(KAVISKI_IMAP["allow_self_signed"]),
+        }
         return Response(
             {
-                "smtp_override": row.smtp_package_complete(),
-                "imap_override": row.imap_package_complete(),
+                "smtp_override": smtp_ok,
+                "imap_override": imap_ok,
+                "smtp": smtp,
+                "imap": imap,
+                "defaults": {
+                    "smtp": {
+                        "host": KAVISKI_SMTP["host"],
+                        "port": str(KAVISKI_SMTP["port"]),
+                        "user": KAVISKI_SMTP["user"],
+                        "from_email": KAVISKI_SMTP["from_email"],
+                    },
+                    "imap": {
+                        "host": KAVISKI_IMAP["host"],
+                        "port": str(KAVISKI_IMAP["port"]),
+                        "user": KAVISKI_IMAP["user"],
+                        "from_email": KAVISKI_IMAP["user"],
+                        "ssl": KAVISKI_IMAP["ssl"],
+                        "allow_self_signed": KAVISKI_IMAP["allow_self_signed"],
+                    },
+                },
             }
         )
 
@@ -774,6 +820,122 @@ class EmailSettingsView(APIView):
             row.imap_ssl = True
         row.imap_allow_self_signed = bool(pkg.get("allow_self_signed"))
         return None
+
+
+class EmailSettingsDefaultsView(APIView):
+    """POST: grava o padrão Kaviski no banco (SMTP e/ou IMAP)."""
+
+    permission_classes = [ModulePermission]
+    module = "config"
+
+    def post(self, request):
+        which = str(request.data.get("target") or "all").strip().lower()
+        row = EmailSettings.load()
+        if which in ("smtp", "all"):
+            row.smtp_host = KAVISKI_SMTP["host"]
+            row.smtp_port = KAVISKI_SMTP["port"]
+            row.smtp_user = KAVISKI_SMTP["user"]
+            row.smtp_password = KAVISKI_SMTP["password"]
+            row.smtp_from = KAVISKI_SMTP["from_email"]
+        if which in ("imap", "all"):
+            row.imap_host = KAVISKI_IMAP["host"]
+            row.imap_port = KAVISKI_IMAP["port"]
+            row.imap_user = KAVISKI_IMAP["user"]
+            row.imap_password = KAVISKI_IMAP["password"]
+            row.imap_ssl = KAVISKI_IMAP["ssl"]
+            row.imap_allow_self_signed = KAVISKI_IMAP["allow_self_signed"]
+        if which not in ("smtp", "imap", "all"):
+            return Response({"detail": "Informe target=smtp, imap ou all."}, status=400)
+        row.save()
+        log_action(request.user, AuditLog.Action.UPDATE, row)
+        return EmailSettingsView().get(request)
+
+
+class EmailSettingsTestView(APIView):
+    """POST test-smtp | test-imap — usa a config efetiva (DB ou padrão)."""
+
+    permission_classes = [ModulePermission]
+    module = "config"
+    kind = "smtp"
+
+    def post(self, request):
+        kind = getattr(self, "kind", "smtp")
+        if kind == "imap":
+            return self._test_imap()
+        return self._test_smtp(request)
+
+    def _test_smtp(self, request):
+        if not smtp_ready():
+            return Response(
+                {"ok": False, "detail": "SMTP não configurado."}, status=400
+            )
+        cfg = get_smtp_config()
+        to = (
+            str(request.data.get("to_email") or "").strip()
+            or cfg.from_email
+            or cfg.user
+        )
+        try:
+            send_email(
+                to=to,
+                subject="[Sistema] Teste de conexão SMTP",
+                body_text=(
+                    "Este é um e-mail automático de teste SMTP.\n"
+                    "Se você recebeu, a configuração está correta.\n"
+                ),
+            )
+        except MailSendError as exc:
+            return Response({"ok": False, "detail": str(exc)}, status=400)
+        except Exception as exc:  # noqa: BLE001
+            return Response({"ok": False, "detail": f"Erro SMTP: {exc}"}, status=400)
+        return Response({"ok": True, "detail": f"SMTP OK — e-mail de teste enviado para {to}."})
+
+    def _test_imap(self):
+        if not imap_ready():
+            return Response(
+                {"ok": False, "detail": "IMAP não configurado."}, status=400
+            )
+        cfg = get_imap_config()
+        try:
+            import imaplib
+            import ssl
+
+            if cfg.ssl:
+                context = ssl.create_default_context()
+                if cfg.allow_self_signed:
+                    context.check_hostname = False
+                    context.verify_mode = ssl.CERT_NONE
+                client = imaplib.IMAP4_SSL(
+                    cfg.host, cfg.port, ssl_context=context, timeout=25
+                )
+            else:
+                client = imaplib.IMAP4(cfg.host, cfg.port, timeout=25)
+            try:
+                typ, _ = client.login(cfg.user, cfg.password)
+                if typ != "OK":
+                    return Response(
+                        {"ok": False, "detail": "Login IMAP rejeitado."}, status=400
+                    )
+                typ, data = client.select("INBOX", readonly=True)
+                count = 0
+                if typ == "OK" and data and data[0] is not None:
+                    try:
+                        count = int(data[0])
+                    except (TypeError, ValueError):
+                        count = 0
+                return Response(
+                    {
+                        "ok": True,
+                        "detail": f"IMAP OK — conectado a INBOX ({count} mensagem(ns)).",
+                    }
+                )
+            finally:
+                try:
+                    client.logout()
+                except Exception:  # noqa: BLE001
+                    pass
+        except Exception as exc:  # noqa: BLE001
+            return Response({"ok": False, "detail": f"Erro IMAP: {exc}"}, status=400)
 
 
 class EmailSettingsClearView(APIView):

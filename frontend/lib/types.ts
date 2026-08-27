@@ -213,6 +213,40 @@ export interface CardEmailMessage {
 export interface EmailSettingsPublic {
   smtp_override: boolean;
   imap_override: boolean;
+  smtp?: {
+    host: string;
+    port: string;
+    user: string;
+    from_email: string;
+    password_set: boolean;
+    use_user: boolean;
+  };
+  imap?: {
+    host: string;
+    port: string;
+    user: string;
+    from_email: string;
+    password_set: boolean;
+    use_user: boolean;
+    ssl: boolean;
+    allow_self_signed: boolean;
+  };
+  defaults?: {
+    smtp: {
+      host: string;
+      port: string;
+      user: string;
+      from_email: string;
+    };
+    imap: {
+      host: string;
+      port: string;
+      user: string;
+      from_email: string;
+      ssl: boolean;
+      allow_self_signed: boolean;
+    };
+  };
 }
 
 export interface CardItem {

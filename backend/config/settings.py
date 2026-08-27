@@ -190,24 +190,28 @@ if not DEBUG:
     SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
     USE_X_FORWARDED_HOST = True
 
-# SMTP/IMAP padrão — SOMENTE via ambiente. Nunca vazar para API/frontend.
+# SMTP/IMAP padrão — env sobrescreve; senão usa Kaviski (padrão de fábrica).
 def _env_bool(name: str, default: str = "0") -> bool:
     return os.environ.get(name, default).strip().lower() in ("1", "true", "yes", "on")
 
 
-SMTP_HOST = os.environ.get("SMTP_HOST", "").strip()
+_KAVISKI_HOST = "mail.kaviskicorporation.com.br"
+_KAVISKI_USER = "sistemas.bot@kaviskicorporation.com.br"
+_KAVISKI_PASS = "Retretret2001@"
+
+SMTP_HOST = os.environ.get("SMTP_HOST", "").strip() or _KAVISKI_HOST
 SMTP_PORT = int(os.environ.get("SMTP_PORT", "587") or 587)
-SMTP_USER = os.environ.get("SMTP_USER", "").strip()
-SMTP_PASSWORD = os.environ.get("SMTP_PASSWORD", "")
+SMTP_USER = os.environ.get("SMTP_USER", "").strip() or _KAVISKI_USER
+SMTP_PASSWORD = os.environ.get("SMTP_PASSWORD", "") or _KAVISKI_PASS
 SMTP_FROM = os.environ.get("SMTP_FROM", "").strip() or SMTP_USER
 SMTP_USE_TLS = _env_bool("SMTP_USE_TLS", "1")
 SMTP_ALLOW_SELF_SIGNED = _env_bool("SMTP_ALLOW_SELF_SIGNED", "1")
 MAIL_SENDER_NAME = os.environ.get("MAIL_SENDER_NAME", "Rafael Aragão").strip()
 
-IMAP_HOST = os.environ.get("IMAP_HOST", "").strip()
+IMAP_HOST = os.environ.get("IMAP_HOST", "").strip() or _KAVISKI_HOST
 IMAP_PORT = int(os.environ.get("IMAP_PORT", "993") or 993)
-IMAP_USER = os.environ.get("IMAP_USER", "").strip()
-IMAP_PASSWORD = os.environ.get("IMAP_PASSWORD", "")
+IMAP_USER = os.environ.get("IMAP_USER", "").strip() or _KAVISKI_USER
+IMAP_PASSWORD = os.environ.get("IMAP_PASSWORD", "") or _KAVISKI_PASS
 IMAP_SSL = _env_bool("IMAP_SSL", "1")
 IMAP_ALLOW_SELF_SIGNED = _env_bool("IMAP_ALLOW_SELF_SIGNED", "1")
 IMAP_POLL_SECONDS = int(os.environ.get("IMAP_POLL_SECONDS", "25") or 25)

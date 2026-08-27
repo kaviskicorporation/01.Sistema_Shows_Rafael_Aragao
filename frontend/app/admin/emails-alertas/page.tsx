@@ -3,7 +3,9 @@
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import {
   Inbox,
+  Loader2,
   Mail,
+  PlugZap,
   RotateCcw,
   Save,
   Send,
@@ -18,6 +20,7 @@ import NotificationSettingsPanel from "@/components/admin/NotificationSettingsPa
 const inputCls =
   "rounded-lg border border-white/10 bg-ink px-3 py-2 text-sm text-white outline-none placeholder:text-white/25 focus:border-gold disabled:opacity-60";
 const inputFullCls = `w-full ${inputCls}`;
+const PASSWORD_DOTS = "••••••••••••";
 
 type SmtpForm = {
   host: string;
@@ -26,6 +29,7 @@ type SmtpForm = {
   password: string;
   from_email: string;
   use_user: boolean;
+  password_set: boolean;
 };
 
 type ImapForm = SmtpForm & {
@@ -40,6 +44,7 @@ const EMPTY_SMTP: SmtpForm = {
   password: "",
   from_email: "",
   use_user: false,
+  password_set: false,
 };
 
 const EMPTY_IMAP: ImapForm = {
@@ -47,6 +52,36 @@ const EMPTY_IMAP: ImapForm = {
   ssl: true,
   allow_self_signed: true,
 };
+
+function smtpFromApi(data: EmailSettingsPublic): SmtpForm {
+  const s = data.smtp;
+  if (!s) return { ...EMPTY_SMTP };
+  return {
+    host: s.host || "",
+    port: s.port || "",
+    user: s.user || "",
+    password: "",
+    from_email: s.from_email || "",
+    use_user: Boolean(s.use_user),
+    password_set: Boolean(s.password_set),
+  };
+}
+
+function imapFromApi(data: EmailSettingsPublic): ImapForm {
+  const s = data.imap;
+  if (!s) return { ...EMPTY_IMAP };
+  return {
+    host: s.host || "",
+    port: s.port || "",
+    user: s.user || "",
+    password: "",
+    from_email: s.from_email || s.user || "",
+    use_user: Boolean(s.use_user ?? true),
+    password_set: Boolean(s.password_set),
+    ssl: Boolean(s.ssl ?? true),
+    allow_self_signed: Boolean(s.allow_self_signed ?? true),
+  };
+}
 
 function smtpFilled(f: SmtpForm) {
   return Boolean(
@@ -71,19 +106,21 @@ export default function EmailsAlertasPage() {
   });
   const [smtp, setSmtp] = useState<SmtpForm>(EMPTY_SMTP);
   const [imap, setImap] = useState<ImapForm>(EMPTY_IMAP);
-  const [saving, setSaving] = useState<"all" | "smtp" | "imap" | "">("");
+  const [saving, setSaving] = useState<"all" | "smtp" | "imap" | "defaults" | "">("");
+  const [testing, setTesting] = useState<"smtp" | "imap" | "">("");
   const [msg, setMsg] = useState("");
   const [err, setErr] = useState("");
 
+  const applyResponse = useCallback((data: EmailSettingsPublic) => {
+    setMeta(data);
+    setSmtp(smtpFromApi(data));
+    setImap(imapFromApi(data));
+  }, []);
+
   const load = useCallback(async () => {
     const data = await api.get<EmailSettingsPublic>("/email-settings");
-    setMeta({
-      smtp_override: Boolean(data.smtp_override),
-      imap_override: Boolean(data.imap_override),
-    });
-    setSmtp(EMPTY_SMTP);
-    setImap(EMPTY_IMAP);
-  }, []);
+    applyResponse(data);
+  }, [applyResponse]);
 
   useEffect(() => {
     if (!can("config")) return;
@@ -93,7 +130,7 @@ export default function EmailsAlertasPage() {
   function flash(ok: string) {
     setErr("");
     setMsg(ok);
-    window.setTimeout(() => setMsg(""), 4000);
+    window.setTimeout(() => setMsg(""), 5000);
   }
 
   function apiErr(e: unknown) {
@@ -119,13 +156,8 @@ export default function EmailsAlertasPage() {
     setErr("");
     try {
       const data = await api.put<EmailSettingsPublic>("/email-settings", body);
-      setMeta({
-        smtp_override: Boolean(data.smtp_override),
-        imap_override: Boolean(data.imap_override),
-      });
-      setSmtp(EMPTY_SMTP);
-      setImap(EMPTY_IMAP);
-      flash("Salvo. Os formulários voltam em branco por segurança.");
+      applyResponse(data);
+      flash("Salvo. Senhas continuam ocultas (bolinhas).");
     } catch (e) {
       apiErr(e);
     } finally {
@@ -135,9 +167,7 @@ export default function EmailsAlertasPage() {
 
   async function saveSmtp() {
     if (!smtpFilled(smtp)) {
-      setErr(
-        "SMTP vazio — o servidor interno já está ativo. Preencha o pacote completo só se quiser substituir."
-      );
+      setErr("Preencha o pacote SMTP ou use Voltar ao padrão.");
       return;
     }
     await savePayload(
@@ -157,9 +187,7 @@ export default function EmailsAlertasPage() {
 
   async function saveImap() {
     if (!imapFilled(imap)) {
-      setErr(
-        "IMAP vazio — o servidor interno já está ativo. Preencha o pacote completo só se quiser substituir."
-      );
+      setErr("Preencha o pacote IMAP ou use Voltar ao padrão.");
       return;
     }
     await savePayload(
@@ -206,6 +234,26 @@ export default function EmailsAlertasPage() {
     await savePayload(body, "all");
   }
 
+  async function restoreDefaults(target: "smtp" | "imap" | "all") {
+    setSaving("defaults");
+    setErr("");
+    try {
+      const data = await api.post<EmailSettingsPublic>("/email-settings/defaults", {
+        target,
+      });
+      applyResponse(data);
+      flash(
+        target === "all"
+          ? "Padrão Kaviski restaurado (SMTP + IMAP)."
+          : `Padrão Kaviski restaurado (${target.toUpperCase()}).`
+      );
+    } catch (e) {
+      apiErr(e);
+    } finally {
+      setSaving("");
+    }
+  }
+
   async function clearOverride(target: "smtp" | "imap") {
     setSaving(target);
     setErr("");
@@ -213,21 +261,34 @@ export default function EmailsAlertasPage() {
       const data = await api.post<EmailSettingsPublic>("/email-settings/clear", {
         target,
       });
-      setMeta({
-        smtp_override: Boolean(data.smtp_override),
-        imap_override: Boolean(data.imap_override),
-      });
-      if (target === "smtp") setSmtp(EMPTY_SMTP);
-      else setImap(EMPTY_IMAP);
+      applyResponse(data);
       flash(
         target === "smtp"
-          ? "SMTP voltou ao servidor interno."
-          : "IMAP voltou ao servidor interno."
+          ? "Override SMTP removido — usa o padrão interno."
+          : "Override IMAP removido — usa o padrão interno."
       );
     } catch (e) {
       apiErr(e);
     } finally {
       setSaving("");
+    }
+  }
+
+  async function runTest(kind: "smtp" | "imap") {
+    setTesting(kind);
+    setErr("");
+    try {
+      const res = await api.post<{ ok: boolean; detail: string }>(
+        kind === "smtp"
+          ? "/email-settings/test-smtp"
+          : "/email-settings/test-imap",
+        {}
+      );
+      flash(res.detail || (res.ok ? "OK" : "Falha"));
+    } catch (e) {
+      apiErr(e);
+    } finally {
+      setTesting("");
     }
   }
 
@@ -247,199 +308,210 @@ export default function EmailsAlertasPage() {
       <Topbar title="E-mails e alertas" />
       <div className="space-y-5 p-6">
         {can("config") && (
-        <>
-        <AdminHero
-          icon={Mail}
-          title="E-mails e alertas"
-          subtitle="Se deixar em branco, o sistema usa o servidor interno. Preencha o pacote completo só se quiser usar o e-mail da sua empresa."
-          actions={
-            writable ? (
-              <button
-                type="button"
-                onClick={() => void saveAll()}
-                disabled={Boolean(saving)}
-                className="inline-flex items-center gap-2 rounded-full bg-gold px-4 py-2.5 text-sm font-semibold text-ink disabled:opacity-50"
+          <>
+            <AdminHero
+              icon={Mail}
+              title="E-mails e alertas"
+              subtitle="Padrão Kaviski já vem preenchido (senha em bolinhas). Você pode sobrescrever com as suas credenciais e voltar ao padrão quando quiser."
+              actions={
+                writable ? (
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => void restoreDefaults("all")}
+                      disabled={Boolean(saving)}
+                      className="inline-flex items-center gap-2 rounded-full border border-white/15 px-4 py-2.5 text-sm font-semibold text-white/80 hover:border-gold/40 hover:text-gold disabled:opacity-50"
+                    >
+                      <RotateCcw size={14} />
+                      Voltar ao padrão
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void saveAll()}
+                      disabled={Boolean(saving)}
+                      className="inline-flex items-center gap-2 rounded-full bg-gold px-4 py-2.5 text-sm font-semibold text-ink disabled:opacity-50"
+                    >
+                      <Save size={14} />
+                      {saving === "all" ? "Salvando…" : "Salvar"}
+                    </button>
+                  </div>
+                ) : undefined
+              }
+              stats={[
+                {
+                  label: "SMTP",
+                  value: meta.smtp_override ? "Personalizado" : "Padrão",
+                  icon: Send,
+                },
+                {
+                  label: "IMAP",
+                  value: meta.imap_override ? "Personalizado" : "Padrão",
+                  icon: Inbox,
+                },
+              ]}
+            />
+
+            {(msg || err) && (
+              <p
+                className={`rounded-xl border px-4 py-2.5 text-sm ${
+                  err
+                    ? "border-red-400/30 bg-red-400/10 text-red-200"
+                    : "border-emerald-400/30 bg-emerald-400/10 text-emerald-200"
+                }`}
               >
-                <Save size={14} />
-                {saving === "all" ? "Salvando…" : "Salvar"}
-              </button>
-            ) : undefined
-          }
-          stats={[
-            {
-              label: "SMTP",
-              value: meta.smtp_override ? "Próprio" : "Interno",
-              icon: Send,
-            },
-            {
-              label: "IMAP",
-              value: meta.imap_override ? "Próprio" : "Interno",
-              icon: Inbox,
-            },
-          ]}
-        />
+                {err || msg}
+              </p>
+            )}
 
-        {(msg || err) && (
-          <p
-            className={`rounded-xl border px-4 py-2.5 text-sm ${
-              err
-                ? "border-red-400/30 bg-red-400/10 text-red-200"
-                : "border-emerald-400/30 bg-emerald-400/10 text-emerald-200"
-            }`}
-          >
-            {err || msg}
-          </p>
-        )}
+            <div className="grid gap-5 lg:grid-cols-2">
+              <MailCard
+                title="SMTP"
+                hint="Envio"
+                icon={Send}
+                override={meta.smtp_override}
+                writable={writable}
+                saving={saving === "smtp" || saving === "defaults"}
+                testing={testing === "smtp"}
+                onSave={() => void saveSmtp()}
+                onClear={() => void clearOverride("smtp")}
+                onDefaults={() => void restoreDefaults("smtp")}
+                onTest={() => void runTest("smtp")}
+              >
+                <HostPort
+                  host={smtp.host}
+                  port={smtp.port}
+                  portPlaceholder="587"
+                  onHost={(v) => setSmtp((s) => ({ ...s, host: v }))}
+                  onPort={(v) => setSmtp((s) => ({ ...s, port: v }))}
+                  disabled={!writable}
+                />
+                <Field
+                  label="User"
+                  value={smtp.user}
+                  onChange={(v) =>
+                    setSmtp((s) => ({
+                      ...s,
+                      user: v,
+                      from_email: s.use_user ? v : s.from_email,
+                    }))
+                  }
+                  disabled={!writable}
+                  autoComplete="off"
+                />
+                <Field
+                  label="Senha"
+                  type="password"
+                  value={smtp.password}
+                  onChange={(v) =>
+                    setSmtp((s) => ({
+                      ...s,
+                      password: v,
+                      password_set: Boolean(v) || s.password_set,
+                    }))
+                  }
+                  disabled={!writable}
+                  autoComplete="new-password"
+                  placeholder={
+                    smtp.password_set ? PASSWORD_DOTS : "Digite a senha"
+                  }
+                />
+                <FromRow
+                  value={smtp.from_email}
+                  useUser={smtp.use_user}
+                  user={smtp.user}
+                  disabled={!writable}
+                  onValue={(v) => setSmtp((s) => ({ ...s, from_email: v }))}
+                  onUseUser={(v) =>
+                    setSmtp((s) => ({
+                      ...s,
+                      use_user: v,
+                      from_email: v ? s.user : s.from_email,
+                    }))
+                  }
+                />
+              </MailCard>
 
-        <div className="grid gap-5 lg:grid-cols-2">
-          <MailCard
-            title="SMTP"
-            hint="Envio"
-            icon={Send}
-            override={meta.smtp_override}
-            writable={writable}
-            saving={saving === "smtp"}
-            onSave={() => void saveSmtp()}
-            onClear={() => void clearOverride("smtp")}
-          >
-            <HostPort
-              host={smtp.host}
-              port={smtp.port}
-              portPlaceholder="ex.: 587"
-              onHost={(v) => setSmtp((s) => ({ ...s, host: v }))}
-              onPort={(v) => setSmtp((s) => ({ ...s, port: v }))}
-              disabled={!writable}
-            />
-            <Field
-              label="User"
-              value={smtp.user}
-              onChange={(v) =>
-                setSmtp((s) => ({
-                  ...s,
-                  user: v,
-                  from_email: s.use_user ? v : s.from_email,
-                }))
-              }
-              disabled={!writable}
-              autoComplete="off"
-            />
-            <Field
-              label="Senha"
-              type="password"
-              value={smtp.password}
-              onChange={(v) => setSmtp((s) => ({ ...s, password: v }))}
-              disabled={!writable}
-              autoComplete="new-password"
-              placeholder={
-                meta.smtp_override
-                  ? "Em branco mantém a senha já salva"
-                  : undefined
-              }
-            />
-            <FromRow
-              value={smtp.from_email}
-              useUser={smtp.use_user}
-              user={smtp.user}
-              disabled={!writable}
-              onValue={(v) => setSmtp((s) => ({ ...s, from_email: v }))}
-              onUseUser={(v) =>
-                setSmtp((s) => ({
-                  ...s,
-                  use_user: v,
-                  from_email: v ? s.user : s.from_email,
-                }))
-              }
-            />
-          </MailCard>
-
-          <MailCard
-            title="IMAP"
-            hint="Recebimento"
-            icon={Inbox}
-            override={meta.imap_override}
-            writable={writable}
-            saving={saving === "imap"}
-            onSave={() => void saveImap()}
-            onClear={() => void clearOverride("imap")}
-          >
-            <HostPort
-              host={imap.host}
-              port={imap.port}
-              portPlaceholder="ex.: 993"
-              onHost={(v) => setImap((s) => ({ ...s, host: v }))}
-              onPort={(v) => setImap((s) => ({ ...s, port: v }))}
-              disabled={!writable}
-            />
-            <Field
-              label="User"
-              value={imap.user}
-              onChange={(v) =>
-                setImap((s) => ({
-                  ...s,
-                  user: v,
-                  from_email: s.use_user ? v : s.from_email,
-                }))
-              }
-              disabled={!writable}
-              autoComplete="off"
-            />
-            <Field
-              label="Senha"
-              type="password"
-              value={imap.password}
-              onChange={(v) => setImap((s) => ({ ...s, password: v }))}
-              disabled={!writable}
-              autoComplete="new-password"
-              placeholder={
-                meta.imap_override
-                  ? "Em branco mantém a senha já salva"
-                  : undefined
-              }
-            />
-            <FromRow
-              value={imap.from_email}
-              useUser={imap.use_user}
-              user={imap.user}
-              disabled={!writable}
-              onValue={(v) => setImap((s) => ({ ...s, from_email: v }))}
-              onUseUser={(v) =>
-                setImap((s) => ({
-                  ...s,
-                  use_user: v,
-                  from_email: v ? s.user : s.from_email,
-                }))
-              }
-            />
-            <label className="flex items-center gap-2 text-sm text-white/70">
-              <input
-                type="checkbox"
-                checked={imap.ssl}
-                onChange={(e) =>
-                  setImap((s) => ({ ...s, ssl: e.target.checked }))
-                }
-                disabled={!writable}
-                className="accent-gold"
-              />
-              SSL
-            </label>
-            <label className="flex items-center gap-2 text-sm text-white/70">
-              <input
-                type="checkbox"
-                checked={imap.allow_self_signed}
-                onChange={(e) =>
-                  setImap((s) => ({
-                    ...s,
-                    allow_self_signed: e.target.checked,
-                  }))
-                }
-                disabled={!writable}
-                className="accent-gold"
-              />
-              Permitir certificado autoassinado
-            </label>
-          </MailCard>
-        </div>
-        </>
+              <MailCard
+                title="IMAP"
+                hint="Leitura"
+                icon={Inbox}
+                override={meta.imap_override}
+                writable={writable}
+                saving={saving === "imap" || saving === "defaults"}
+                testing={testing === "imap"}
+                onSave={() => void saveImap()}
+                onClear={() => void clearOverride("imap")}
+                onDefaults={() => void restoreDefaults("imap")}
+                onTest={() => void runTest("imap")}
+              >
+                <HostPort
+                  host={imap.host}
+                  port={imap.port}
+                  portPlaceholder="993"
+                  onHost={(v) => setImap((s) => ({ ...s, host: v }))}
+                  onPort={(v) => setImap((s) => ({ ...s, port: v }))}
+                  disabled={!writable}
+                />
+                <Field
+                  label="User"
+                  value={imap.user}
+                  onChange={(v) =>
+                    setImap((s) => ({
+                      ...s,
+                      user: v,
+                      from_email: s.use_user ? v : s.from_email,
+                    }))
+                  }
+                  disabled={!writable}
+                  autoComplete="off"
+                />
+                <Field
+                  label="Senha"
+                  type="password"
+                  value={imap.password}
+                  onChange={(v) =>
+                    setImap((s) => ({
+                      ...s,
+                      password: v,
+                      password_set: Boolean(v) || s.password_set,
+                    }))
+                  }
+                  disabled={!writable}
+                  autoComplete="new-password"
+                  placeholder={
+                    imap.password_set ? PASSWORD_DOTS : "Digite a senha"
+                  }
+                />
+                <label className="flex items-center gap-2 text-sm text-white/70">
+                  <input
+                    type="checkbox"
+                    checked={imap.ssl}
+                    onChange={(e) =>
+                      setImap((s) => ({ ...s, ssl: e.target.checked }))
+                    }
+                    disabled={!writable}
+                    className="accent-gold"
+                  />
+                  SSL
+                </label>
+                <label className="flex items-center gap-2 text-sm text-white/70">
+                  <input
+                    type="checkbox"
+                    checked={imap.allow_self_signed}
+                    onChange={(e) =>
+                      setImap((s) => ({
+                        ...s,
+                        allow_self_signed: e.target.checked,
+                      }))
+                    }
+                    disabled={!writable}
+                    className="accent-gold"
+                  />
+                  Permitir certificado autoassinado
+                </label>
+              </MailCard>
+            </div>
+          </>
         )}
         <NotificationSettingsPanel />
       </div>
@@ -454,8 +526,11 @@ function MailCard({
   override,
   writable,
   saving,
+  testing,
   onSave,
   onClear,
+  onDefaults,
+  onTest,
   children,
 }: {
   title: string;
@@ -464,8 +539,11 @@ function MailCard({
   override: boolean;
   writable: boolean;
   saving: boolean;
+  testing: boolean;
   onSave: () => void;
   onClear: () => void;
+  onDefaults: () => void;
+  onTest: () => void;
   children: ReactNode;
 }) {
   return (
@@ -489,36 +567,55 @@ function MailCard({
               : "bg-white/8 text-white/45"
           }`}
         >
-          {override ? "Personalizado" : "Servidor interno"}
+          {override ? "Personalizado" : "Padrão Kaviski"}
         </span>
       </div>
-      {override && (
-        <p className="rounded-xl border border-amber-400/20 bg-amber-400/8 px-3 py-2 text-xs text-amber-100/80">
-          Pacote próprio em uso. Os campos ficam em branco de propósito — o
-          sistema não mostra as credenciais.
-        </p>
-      )}
+      <p className="text-xs text-white/45">
+        Senha aparece só como bolinhas. Em branco ao salvar mantém a senha já
+        gravada.
+      </p>
       <div className="space-y-3">{children}</div>
       {writable && (
         <div className="mt-auto flex flex-wrap gap-2 pt-2">
           <button
             type="button"
             onClick={onSave}
-            disabled={saving}
+            disabled={saving || testing}
             className="inline-flex items-center gap-2 rounded-full bg-gold px-4 py-2 text-sm font-semibold text-ink disabled:opacity-50"
           >
             <Save size={14} />
             {saving ? "Salvando…" : `Salvar ${title}`}
           </button>
+          <button
+            type="button"
+            onClick={onTest}
+            disabled={saving || testing}
+            className="inline-flex items-center gap-2 rounded-full border border-white/15 px-4 py-2 text-sm text-white/80 hover:border-gold/40 hover:text-gold disabled:opacity-50"
+          >
+            {testing ? (
+              <Loader2 size={14} className="animate-spin" />
+            ) : (
+              <PlugZap size={14} />
+            )}
+            Testar {title}
+          </button>
+          <button
+            type="button"
+            onClick={onDefaults}
+            disabled={saving || testing}
+            className="inline-flex items-center gap-2 rounded-full border border-white/15 px-4 py-2 text-sm text-white/70 hover:text-white disabled:opacity-50"
+          >
+            <RotateCcw size={14} />
+            Voltar ao padrão
+          </button>
           {override && (
             <button
               type="button"
               onClick={onClear}
-              disabled={saving}
-              className="inline-flex items-center gap-2 rounded-full border border-white/15 px-4 py-2 text-sm text-white/70 hover:text-white disabled:opacity-50"
+              disabled={saving || testing}
+              className="inline-flex items-center gap-2 rounded-full border border-white/10 px-4 py-2 text-sm text-white/45 hover:text-white/70 disabled:opacity-50"
             >
-              <RotateCcw size={14} />
-              Limpar e voltar ao servidor interno
+              Limpar override
             </button>
           )}
         </div>
@@ -632,7 +729,7 @@ function FromRow({
           autoComplete="off"
         />
       </label>
-      <label className="mb-2 flex shrink-0 items-center gap-2 text-sm text-white/70">
+      <label className="flex items-center gap-2 pb-2 text-sm text-white/70">
         <input
           type="checkbox"
           checked={useUser}
@@ -640,7 +737,7 @@ function FromRow({
           disabled={disabled}
           className="accent-gold"
         />
-        Usar o User
+        Usar o mesmo do User
       </label>
     </div>
   );

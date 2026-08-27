@@ -24,6 +24,8 @@ from core.views import (
     DashboardView,
     DemoDataView,
     EmailSettingsClearView,
+    EmailSettingsDefaultsView,
+    EmailSettingsTestView,
     EmailSettingsView,
     EventExportView,
     FaqItemViewSet,
@@ -109,6 +111,24 @@ urlpatterns = [
     path("api/email-settings/", EmailSettingsView.as_view()),
     path("api/email-settings/clear", EmailSettingsClearView.as_view()),
     path("api/email-settings/clear/", EmailSettingsClearView.as_view()),
+    path("api/email-settings/defaults", EmailSettingsDefaultsView.as_view()),
+    path("api/email-settings/defaults/", EmailSettingsDefaultsView.as_view()),
+    path(
+        "api/email-settings/test-smtp",
+        EmailSettingsTestView.as_view(kind="smtp"),
+    ),
+    path(
+        "api/email-settings/test-smtp/",
+        EmailSettingsTestView.as_view(kind="smtp"),
+    ),
+    path(
+        "api/email-settings/test-imap",
+        EmailSettingsTestView.as_view(kind="imap"),
+    ),
+    path(
+        "api/email-settings/test-imap/",
+        EmailSettingsTestView.as_view(kind="imap"),
+    ),
     path("api/notification-settings", NotificationSettingsView.as_view()),
     path("api/notification-settings/", NotificationSettingsView.as_view()),
     path("api/notification-settings/preferences", NotificationPreferenceBulkView.as_view()),

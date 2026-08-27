@@ -405,19 +405,23 @@ export default function Hero({
         className="relative z-20 shrink-0 border-t border-gold/20 bg-ink/80 backdrop-blur-md lg:absolute lg:inset-x-0 lg:bottom-0"
       >
         <div className="overflow-hidden py-2.5">
-          <div className="hero-marquee-track flex w-max items-center gap-8 pr-8">
-            {[...highlights, ...highlights, ...highlights, ...highlights].map(
-              ({ Icon, label, key }, i) => (
-                <span
-                  key={`${key}-${i}`}
-                  className="flex items-center gap-2.5 text-[11px] font-semibold uppercase tracking-[0.22em] text-white/55"
-                >
-                  <Icon className="h-3.5 w-3.5 text-gold" strokeWidth={2.2} />
-                  {label}
-                  <span className="ml-5 h-1 w-1 rounded-full bg-gold/50" />
-                </span>
-              )
-            )}
+          <div
+            className="hero-marquee-track flex w-max items-center gap-8 pr-8"
+            style={{
+              // ~9s por show: mesma legibilidade de antes (4 tags ≈ 36s)
+              animationDuration: `${Math.max(36, highlights.length * 9)}s`,
+            }}
+          >
+            {[...highlights, ...highlights].map(({ Icon, label, key }, i) => (
+              <span
+                key={`${key}-${i}`}
+                className="flex items-center gap-2.5 text-[11px] font-semibold uppercase tracking-[0.22em] text-white/55"
+              >
+                <Icon className="h-3.5 w-3.5 text-gold" strokeWidth={2.2} />
+                {label}
+                <span className="ml-5 h-1 w-1 rounded-full bg-gold/50" />
+              </span>
+            ))}
           </div>
         </div>
       </motion.div>

@@ -2,13 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { motion, useMotionValue, useSpring, useTransform } from "framer-motion";
-import {
-  ArrowRight,
-  CalendarDays,
-  MapPin,
-  Mic2,
-  Sparkles,
-} from "lucide-react";
+import { ArrowRight, MapPin } from "lucide-react";
 import type { PublicEvent, SiteConfig } from "@/lib/types";
 import { jumpToContactForm } from "@/lib/scroll";
 import { tourYearsLabel } from "@/lib/tourYears";
@@ -31,14 +25,23 @@ function splitArtistName(title: string) {
   return { lead: parts[0], main: parts.slice(1).join(" ") };
 }
 
-function nextUpcoming(events: PublicEvent[]) {
+function upcomingShows(events: PublicEvent[]) {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-  return (
-    [...events]
-      .filter((e) => parseDate(e.date) >= today)
-      .sort((a, b) => a.date.localeCompare(b.date))[0] ?? null
-  );
+  return [...events]
+    .filter((e) => parseDate(e.date) >= today)
+    .sort((a, b) => a.date.localeCompare(b.date));
+}
+
+function nextUpcoming(events: PublicEvent[]) {
+  return upcomingShows(events)[0] ?? null;
+}
+
+/** Mesmo formato da faixa da agenda: 5/9 Bauru/SP */
+function showTickerLabel(event: PublicEvent) {
+  const d = parseDate(event.date);
+  const place = [event.city, event.state].filter(Boolean).join("/");
+  return `${d.getDate()}/${d.getMonth() + 1} ${place}`.trim();
 }
 
 export default function Hero({
@@ -130,50 +133,17 @@ export default function Hero({
     return () => window.clearTimeout(t);
   }, []);
 
-  const highlights = useMemo(
-    () =>
-      [
-        {
-          Icon: Mic2,
-          label: withYear(
-            config.hero_tag_1,
-            years,
-            SITE_DEFAULTS.hero_tag_1 || "Humor de palco"
-          ),
-        },
-        {
-          Icon: MapPin,
-          label: withYear(
-            config.hero_tag_2,
-            years,
-            SITE_DEFAULTS.hero_tag_2 || "Turnê nacional"
-          ),
-        },
-        {
-          Icon: CalendarDays,
-          label: withYear(
-            config.hero_tag_3,
-            years,
-            SITE_DEFAULTS.hero_tag_3 || "Agenda {year}"
-          ),
-        },
-        {
-          Icon: Sparkles,
-          label: withYear(
-            config.hero_tag_4,
-            years,
-            SITE_DEFAULTS.hero_tag_4 || "Teatros lotados"
-          ),
-        },
-      ].filter((item) => item.label.trim()),
-    [
-      years,
-      config.hero_tag_1,
-      config.hero_tag_2,
-      config.hero_tag_3,
-      config.hero_tag_4,
-    ]
-  );
+  const highlights = useMemo(() => {
+    const fromShows = upcomingShows(events)
+      .map((e) => ({
+        Icon: MapPin,
+        label: showTickerLabel(e),
+        key: `show-${e.id}`,
+      }))
+      .filter((item) => item.label.trim());
+    if (fromShows.length > 0) return fromShows;
+    return [{ Icon: MapPin, label: "Em breve", key: "soon" }];
+  }, [events]);
 
   function onMove(e: React.MouseEvent) {
     const el = ref.current;
@@ -437,9 +407,9 @@ export default function Hero({
         <div className="overflow-hidden py-2.5">
           <div className="hero-marquee-track flex w-max items-center gap-8 pr-8">
             {[...highlights, ...highlights, ...highlights, ...highlights].map(
-              ({ Icon, label }, i) => (
+              ({ Icon, label, key }, i) => (
                 <span
-                  key={`${label}-${i}`}
+                  key={`${key}-${i}`}
                   className="flex items-center gap-2.5 text-[11px] font-semibold uppercase tracking-[0.22em] text-white/55"
                 >
                   <Icon className="h-3.5 w-3.5 text-gold" strokeWidth={2.2} />

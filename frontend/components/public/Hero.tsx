@@ -10,6 +10,7 @@ import { dayOf, monthShort, parseDate } from "@/lib/format";
 import AliveTitle from "./AliveTitle";
 import { SITE_DEFAULTS } from "@/lib/siteDefaults";
 import { resolveNavIcon } from "@/lib/navIcons";
+import { publicMediaUrl } from "@/lib/mediaUrl";
 
 const FALLBACK_ART = "/images/aragones.png";
 const ease = [0.22, 1, 0.36, 1] as const;
@@ -53,10 +54,11 @@ export default function Hero({
   events?: PublicEvent[];
 }) {
   const heroImage =
-    config.hero_image_display ||
-    config.hero_image ||
-    config.hero_image_url ||
-    FALLBACK_ART;
+    publicMediaUrl(
+      config.hero_image_display,
+      config.hero_image,
+      config.hero_image_url
+    ) || FALLBACK_ART;
   const ref = useRef<HTMLElement>(null);
   const mx = useMotionValue(0);
   const my = useMotionValue(0);

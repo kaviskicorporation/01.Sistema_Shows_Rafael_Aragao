@@ -11,6 +11,7 @@ import { Send } from "lucide-react";
 import { api, ApiError } from "@/lib/api";
 import { jumpToContactForm } from "@/lib/scroll";
 import type { SiteConfig } from "@/lib/types";
+import { publicMediaUrl } from "@/lib/mediaUrl";
 import {
   DEFAULT_CONTACT_FORM,
   SYSTEM_FIELD_KEYS,
@@ -62,9 +63,10 @@ export default function ContactForm({ config }: { config?: SiteConfig }) {
     title2: config?.contact_title_line2 || "CORPORATIVO",
     hint: config?.contact_scroll_hint || "Role para revelar o formulário",
     bg:
-      config?.contact_bg_image_display ||
-      config?.contact_bg_image_url ||
-      "/images/rei-dos-peao.png",
+      publicMediaUrl(
+        config?.contact_bg_image_display,
+        config?.contact_bg_image_url
+      ) || "/images/rei-dos-peao.png",
   });
   const [form, setForm] = useState<Values>(() =>
     buildInitial(
@@ -116,9 +118,10 @@ export default function ContactForm({ config }: { config?: SiteConfig }) {
           title2: data.contact_title_line2 || "CORPORATIVO",
           hint: data.contact_scroll_hint || "Role para revelar o formulário",
           bg:
-            data.contact_bg_image_display ||
-            data.contact_bg_image_url ||
-            "/images/rei-dos-peao.png",
+            publicMediaUrl(
+              data.contact_bg_image_display,
+              data.contact_bg_image_url
+            ) || "/images/rei-dos-peao.png",
         });
       })
       .catch(() => {});

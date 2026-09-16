@@ -1,6 +1,7 @@
 from rest_framework import serializers
 
 from .contact_form import default_contact_form_config, normalize_contact_form_config
+from .media_urls import absolute_media_url
 from .models import (
     AuditLog,
     Notification,
@@ -36,9 +37,7 @@ class SponsorSerializer(serializers.ModelSerializer):
 
     def get_image_display(self, obj):
         if obj.image:
-            request = self.context.get("request")
-            url = obj.image.url
-            return request.build_absolute_uri(url) if request else url
+            return absolute_media_url(self.context.get("request"), obj.image)
         return obj.image_url or ""
 
     def update(self, instance, validated_data):
@@ -189,11 +188,7 @@ class SiteConfigSerializer(serializers.ModelSerializer):
         ]
 
     def _abs(self, image_field) -> str:
-        if not image_field:
-            return ""
-        request = self.context.get("request")
-        url = image_field.url
-        return request.build_absolute_uri(url) if request else url
+        return absolute_media_url(self.context.get("request"), image_field)
 
     def get_hero_image_display(self, obj):
         return self._abs(obj.hero_image) or obj.hero_image_url or ""

@@ -1,5 +1,7 @@
 from rest_framework import serializers
 
+from core.media_urls import absolute_media_url
+
 from .models import (
     Card,
     CardAttachment,
@@ -157,11 +159,7 @@ class CardAttachmentSerializer(serializers.ModelSerializer):
         read_only_fields = ["uploaded_by", "uploaded_at", "file_url"]
 
     def get_file_url(self, obj):
-        if not obj.file:
-            return ""
-        request = self.context.get("request")
-        url = obj.file.url
-        return request.build_absolute_uri(url) if request else url
+        return absolute_media_url(self.context.get("request"), obj.file)
 
     def create(self, validated_data):
         request = self.context.get("request")
@@ -190,11 +188,7 @@ class CardEmailAttachmentSerializer(serializers.ModelSerializer):
         fields = ["id", "name", "content_type", "file_url"]
 
     def get_file_url(self, obj):
-        if not obj.file:
-            return ""
-        request = self.context.get("request")
-        url = obj.file.url
-        return request.build_absolute_uri(url) if request else url
+        return absolute_media_url(self.context.get("request"), obj.file)
 
 
 class CardEmailMessageSerializer(serializers.ModelSerializer):

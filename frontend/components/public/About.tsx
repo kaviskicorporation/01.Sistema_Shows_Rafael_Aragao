@@ -9,6 +9,7 @@ import {
 } from "framer-motion";
 import type { SiteConfig } from "@/lib/types";
 import { jumpToContactForm } from "@/lib/scroll";
+import { publicMediaUrl } from "@/lib/mediaUrl";
 import AliveTitle from "./AliveTitle";
 import Typewriter from "./Typewriter";
 import AnimatedArrow from "./AnimatedArrow";
@@ -21,10 +22,11 @@ export default function About({ config }: { config: SiteConfig }) {
   if (!config.about_text) return null;
 
   const aboutImage =
-    config.about_image_display ||
-    config.about_image ||
-    config.about_image_url ||
-    ARTIST_CUTOUT;
+    publicMediaUrl(
+      config.about_image_display,
+      config.about_image,
+      config.about_image_url
+    ) || ARTIST_CUTOUT;
 
   const ref = useRef<HTMLElement>(null);
   const mx = useMotionValue(0);

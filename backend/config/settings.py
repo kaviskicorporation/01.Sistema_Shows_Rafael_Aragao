@@ -167,6 +167,8 @@ AUTH_COOKIE_SECURE = os.environ.get("AUTH_COOKIE_SECURE", "0") == "1"
 AUTH_COOKIE_SAMESITE = "Lax"
 
 FRONTEND_ORIGIN = os.environ.get("FRONTEND_ORIGIN", "http://localhost:3000")
+# Base pública para URLs de /media (SSR do Next usa BACKEND_URL=http://backend:8000).
+PUBLIC_BASE_URL = os.environ.get("PUBLIC_BASE_URL", FRONTEND_ORIGIN).rstrip("/")
 
 CORS_ALLOWED_ORIGINS = list(
     {

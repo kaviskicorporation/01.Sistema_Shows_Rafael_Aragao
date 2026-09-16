@@ -1,5 +1,7 @@
 from rest_framework import serializers
 
+from core.media_urls import absolute_media_url
+
 from .models import Event, EventImage, EventTemplate
 
 
@@ -54,11 +56,7 @@ class EventSerializer(serializers.ModelSerializer):
         read_only_fields = ["slug", "created_at", "updated_at"]
 
     def _abs(self, field):
-        request = self.context.get("request")
-        if field:
-            url = field.url
-            return request.build_absolute_uri(url) if request else url
-        return ""
+        return absolute_media_url(self.context.get("request"), field)
 
     def get_banner_display(self, obj):
         return self._abs(obj.banner) or obj.banner_url or ""
@@ -97,11 +95,7 @@ class PublicEventSerializer(serializers.ModelSerializer):
         ]
 
     def _abs(self, field):
-        request = self.context.get("request")
-        if field:
-            url = field.url
-            return request.build_absolute_uri(url) if request else url
-        return ""
+        return absolute_media_url(self.context.get("request"), field)
 
     def get_banner_display(self, obj):
         return self._abs(obj.banner) or obj.banner_url or ""

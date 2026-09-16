@@ -5,6 +5,7 @@ import { motion } from "framer-motion";
 import { ArrowLeft, CalendarDays, MapPin, ShoppingCart } from "lucide-react";
 import type { PublicEvent, SiteConfig } from "@/lib/types";
 import { formatFullDate, formatTime } from "@/lib/format";
+import { publicMediaUrl } from "@/lib/mediaUrl";
 import {
   PAGE_SOFT_TEXTURE,
   resolveCardBackground,
@@ -29,11 +30,12 @@ export default function ShowDetailView({
   brandTitle: string;
   config?: SiteConfig | null;
 }) {
-  const hasBanner = Boolean(event.banner_display?.trim());
+  const banner = publicMediaUrl(event.banner_display) || "";
+  const hasBanner = Boolean(banner);
   const cardBg = resolveCardBackground({
     preset: event.card_bg_preset,
     color: event.card_bg_color,
-    imageUrl: event.card_bg_image_display,
+    imageUrl: publicMediaUrl(event.card_bg_image_display) || undefined,
   });
   const hasGallery = event.gallery.length > 0;
 
@@ -47,7 +49,7 @@ export default function ShowDetailView({
         <div className="pointer-events-none absolute inset-x-0 top-0 h-[55svh] opacity-35">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
-            src={event.banner_display}
+            src={banner}
             alt=""
             className="h-full w-full object-cover"
           />

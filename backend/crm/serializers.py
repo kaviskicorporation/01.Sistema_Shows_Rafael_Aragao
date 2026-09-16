@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from core.media_urls import absolute_media_url
+from core.media_urls import PublicFileField, absolute_media_url
 
 from .models import (
     Card,
@@ -139,6 +139,7 @@ class CardChecklistItemSerializer(serializers.ModelSerializer):
 
 
 class CardAttachmentSerializer(serializers.ModelSerializer):
+    file = PublicFileField()
     file_url = serializers.SerializerMethodField()
     uploaded_by_name = serializers.CharField(
         source="uploaded_by.username", read_only=True, default=""

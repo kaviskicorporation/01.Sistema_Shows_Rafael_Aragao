@@ -1,4 +1,5 @@
 import type { FaqItem, PublicEvent, SiteConfig, Paginated } from "./types";
+import { publicMediaUrl } from "./mediaUrl";
 
 const BACKEND = process.env.BACKEND_URL || "http://localhost:8000";
 
@@ -6,13 +7,7 @@ const BACKEND = process.env.BACKEND_URL || "http://localhost:8000";
 function rewriteInternalMediaUrls<T>(value: T): T {
   if (value == null) return value;
   if (typeof value === "string") {
-    if (!/https?:\/\/backend(?::\d+)?\//i.test(value)) return value;
-    try {
-      const u = new URL(value);
-      return (u.pathname + u.search) as T;
-    } catch {
-      return value.replace(/^https?:\/\/backend(?::\d+)?/i, "") as T;
-    }
+    return (publicMediaUrl(value) || value) as T;
   }
   if (Array.isArray(value)) {
     return value.map((item) => rewriteInternalMediaUrls(item)) as T;

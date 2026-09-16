@@ -1,7 +1,7 @@
 from rest_framework import serializers
 
 from .contact_form import default_contact_form_config, normalize_contact_form_config
-from .media_urls import absolute_media_url
+from .media_urls import PublicFileField, PublicImageField, absolute_media_url
 from .models import (
     AuditLog,
     Notification,
@@ -14,6 +14,7 @@ from .models import (
 
 
 class SponsorSerializer(serializers.ModelSerializer):
+    image = PublicImageField(required=False, allow_null=True)
     image_display = serializers.SerializerMethodField()
     clear_image = serializers.BooleanField(write_only=True, required=False)
 
@@ -87,6 +88,10 @@ class FaqItemSerializer(serializers.ModelSerializer):
 class SiteConfigSerializer(serializers.ModelSerializer):
     """Upload de imagens via multipart; URLs ficam para fallback/padrão."""
 
+    hero_image = PublicImageField(required=False, allow_null=True)
+    about_image = PublicImageField(required=False, allow_null=True)
+    og_image = PublicImageField(required=False, allow_null=True)
+    contact_bg_image = PublicImageField(required=False, allow_null=True)
     hero_image_display = serializers.SerializerMethodField()
     about_image_display = serializers.SerializerMethodField()
     og_image_display = serializers.SerializerMethodField()

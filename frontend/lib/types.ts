@@ -27,6 +27,7 @@ export interface EventImage {
   id: number;
   image: string | null;
   image_url: string;
+  image_display?: string;
   caption: string;
   order: number;
 }

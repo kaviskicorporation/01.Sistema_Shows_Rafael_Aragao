@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { getPublicEvent, getSiteConfig } from "@/lib/server";
+import { publicMediaUrl } from "@/lib/mediaUrl";
 import Footer from "@/components/public/Footer";
 import Navbar from "@/components/public/Navbar";
 import Ambient from "@/components/public/Ambient";
@@ -15,13 +16,14 @@ export async function generateMetadata({
   const event = await getPublicEvent(slug);
   if (!event) return { title: "Show não encontrado" };
   const title = `${event.name} — ${event.city}/${event.state}`;
+  const banner = publicMediaUrl(event.banner_display) || undefined;
   return {
     title,
     description: event.description || title,
     openGraph: {
       title,
       description: event.description || title,
-      images: event.banner_display ? [{ url: event.banner_display }] : [],
+      images: banner ? [{ url: banner }] : [],
     },
   };
 }

@@ -5,6 +5,7 @@ from __future__ import annotations
 from urllib.parse import urlparse
 
 from django.conf import settings
+from rest_framework import serializers
 
 _INTERNAL_HOSTS = frozenset(
     {
@@ -82,3 +83,21 @@ def absolute_media_url(request, file_or_url) -> str:
 
     # Fallback relativo — o proxy Nginx / rewrite do Next resolve.
     return path
+
+
+class PublicFileField(serializers.FileField):
+    """FileField que nunca devolve host Docker interno."""
+
+    def to_representation(self, value):
+        if not value:
+            return None
+        return absolute_media_url(self.context.get("request"), value) or None
+
+
+class PublicImageField(serializers.ImageField):
+    """ImageField que nunca devolve host Docker interno."""
+
+    def to_representation(self, value):
+        if not value:
+            return None
+        return absolute_media_url(self.context.get("request"), value) or None

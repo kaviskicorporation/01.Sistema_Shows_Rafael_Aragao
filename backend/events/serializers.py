@@ -1,14 +1,22 @@
 from rest_framework import serializers
 
-from core.media_urls import absolute_media_url
+from core.media_urls import PublicImageField, absolute_media_url
 
 from .models import Event, EventImage, EventTemplate
 
 
 class EventImageSerializer(serializers.ModelSerializer):
+    image = PublicImageField(required=False, allow_null=True)
+    image_display = serializers.SerializerMethodField()
+
     class Meta:
         model = EventImage
-        fields = ["id", "image", "image_url", "caption", "order"]
+        fields = ["id", "image", "image_url", "image_display", "caption", "order"]
+
+    def get_image_display(self, obj):
+        return absolute_media_url(self.context.get("request"), obj.image) or (
+            obj.image_url or ""
+        )
 
 
 class EventSerializer(serializers.ModelSerializer):
@@ -16,6 +24,8 @@ class EventSerializer(serializers.ModelSerializer):
     status_display = serializers.CharField(
         source="get_status_display", read_only=True
     )
+    banner = PublicImageField(required=False, allow_null=True)
+    card_bg_image = PublicImageField(required=False, allow_null=True)
     banner_display = serializers.SerializerMethodField()
     card_bg_image_display = serializers.SerializerMethodField()
     session_count = serializers.SerializerMethodField()

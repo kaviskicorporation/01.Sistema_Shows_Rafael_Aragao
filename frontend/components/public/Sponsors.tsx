@@ -2,6 +2,7 @@
 
 import { motion } from "framer-motion";
 import type { Sponsor } from "@/lib/types";
+import { publicMediaUrl } from "@/lib/mediaUrl";
 import TiltCard from "./TiltCard";
 
 export default function Sponsors({
@@ -27,7 +28,8 @@ export default function Sponsors({
 
           <div className="flex w-full max-w-full flex-wrap items-stretch justify-center gap-3 sm:gap-5">
             {list.map((s, i) => {
-              const src = s.image_display || s.image_url || "";
+              const src =
+                publicMediaUrl(s.image_display, s.image_url, s.image) || "";
               const mark = s.text_mark || s.name;
               const inner = (
                 <TiltCard

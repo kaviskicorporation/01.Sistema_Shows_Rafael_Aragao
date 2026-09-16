@@ -2,9 +2,12 @@
 
 import { useState } from "react";
 import type { EventImage } from "@/lib/types";
+import { publicMediaUrl } from "@/lib/mediaUrl";
 
 function src(img: EventImage): string {
-  return img.image_url || img.image || "";
+  return (
+    publicMediaUrl(img.image_display, img.image_url, img.image) || ""
+  );
 }
 
 export default function Gallery({ images }: { images: EventImage[] }) {

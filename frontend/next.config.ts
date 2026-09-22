@@ -19,7 +19,7 @@ const nextConfig: NextConfig = {
   images: {
     remotePatterns: [
       { protocol: "https", hostname: "orafaelaragao.com.br" },
-      { protocol: "https", hostname: "aragao.kaviskicorporation.com.br" },
+      { protocol: "https", hostname: "www.orafaelaragao.com.br" },
       { protocol: "http", hostname: "localhost" },
       { protocol: "http", hostname: "127.0.0.1" },
     ],

@@ -4,7 +4,7 @@
 #
 # Servidor:
 #   pasta: ~/Projetos/Clientes/18-Santiago_Producoes/01.Sistema_Shows_Rafael_Aragao
-#   porta interna: 127.0.0.1:9026  (Nginx host → aragao.kaviskicorporation.com.br)
+#   porta interna: 127.0.0.1:9026  (Nginx host → orafaelaragao.com.br)
 #
 # Primeira vez no Ubuntu:
 #   1. Docker Engine + plugin compose

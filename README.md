@@ -2,7 +2,7 @@
 
 Plataforma do humorista **Rafael Aragão** (Rei dos Peão): site público com agenda de shows e painel administrativo (eventos, CRM Kanban, formulário de contratação, equipe e auditoria).
 
-Produção: [aragao.kaviskicorporation.com.br](https://aragao.kaviskicorporation.com.br)
+Produção: [orafaelaragao.com.br](https://orafaelaragao.com.br)
 
 ## Stack
 
@@ -132,7 +132,7 @@ Cada aba do menu tem cor própria. O que cada usuário vê depende das permissõ
 
 ## Produção (Docker)
 
-Push na `main` dispara o deploy (GitHub Actions → SSH no Ubuntu). No servidor o stack sobe com Docker Compose + PostgreSQL, exposto em `127.0.0.1:9026` e publicado pelo Nginx em `aragao.kaviskicorporation.com.br`.
+Push na `main` dispara o deploy (GitHub Actions → SSH no Ubuntu). No servidor o stack sobe com Docker Compose + PostgreSQL, exposto em `127.0.0.1:9026` e publicado pelo Nginx em `orafaelaragao.com.br`.
 
 Detalhes operacionais: [`deploy/README.md`](deploy/README.md).
 

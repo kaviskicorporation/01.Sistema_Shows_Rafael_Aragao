@@ -17,8 +17,8 @@ def _png(name="x.png"):
 
 
 @override_settings(
-    PUBLIC_BASE_URL="https://aragao.kaviskicorporation.com.br",
-    FRONTEND_ORIGIN="https://aragao.kaviskicorporation.com.br",
+    PUBLIC_BASE_URL="https://orafaelaragao.com.br",
+    FRONTEND_ORIGIN="https://orafaelaragao.com.br",
 )
 class PublicMediaUrlTests(TestCase):
     def setUp(self):
@@ -32,7 +32,7 @@ class PublicMediaUrlTests(TestCase):
         request = self.rf.get("/", HTTP_HOST="backend:8000")
         self.assertEqual(
             public_base_url(request),
-            "https://aragao.kaviskicorporation.com.br",
+            "https://orafaelaragao.com.br",
         )
 
     def test_absolute_media_rewrites_internal_host(self):
@@ -42,7 +42,7 @@ class PublicMediaUrlTests(TestCase):
         )
         self.assertEqual(
             url,
-            "https://aragao.kaviskicorporation.com.br/media/site/hero.png",
+            "https://orafaelaragao.com.br/media/site/hero.png",
         )
 
     def test_site_config_images_use_public_origin(self):
@@ -69,7 +69,7 @@ class PublicMediaUrlTests(TestCase):
             self.assertNotIn("backend", value)
             self.assertTrue(
                 value.startswith(
-                    "https://aragao.kaviskicorporation.com.br/media/"
+                    "https://orafaelaragao.com.br/media/"
                 ),
                 msg=f"{key}={value}",
             )
@@ -112,7 +112,7 @@ class PublicMediaUrlTests(TestCase):
             self.assertNotIn("backend", value)
             self.assertTrue(
                 value.startswith(
-                    "https://aragao.kaviskicorporation.com.br/media/"
+                    "https://orafaelaragao.com.br/media/"
                 ),
                 msg=value,
             )

@@ -19,7 +19,7 @@ class NotificationEmailTests(TestCase):
             is_active=True,
         )
 
-    @override_settings(FRONTEND_ORIGIN="https://aragao.kaviskicorporation.com.br")
+    @override_settings(FRONTEND_ORIGIN="https://orafaelaragao.com.br")
     @patch("core.notifications.mail.smtp_ready", return_value=True)
     @patch("core.notifications.mail.send_email", return_value="<mid>")
     def test_lead_aviso_vai_ao_principal_mesmo_com_matriz_obsoleta(
@@ -45,7 +45,7 @@ class NotificationEmailTests(TestCase):
         self.assertEqual(kwargs["to"], "vitorkaviski@gmail.com")
         self.assertIn("Maria Teste", kwargs["body_text"])
         self.assertIn(
-            "https://aragao.kaviskicorporation.com.br/admin/crm?card=12",
+            "https://orafaelaragao.com.br/admin/crm?card=12",
             kwargs["body_text"],
         )
         log = NotificationDispatchLog.objects.get(event_type=CRM_LEAD_CREATED)

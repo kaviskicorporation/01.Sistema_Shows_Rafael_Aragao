@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { getPublicEvents, getPublicFaqs, getSiteConfig } from "@/lib/server";
 import type { SiteConfig } from "@/lib/types";
 import { publicMediaUrl } from "@/lib/mediaUrl";
+import { DEFAULT_OG_IMAGE } from "@/lib/siteDefaults";
 import Navbar from "@/components/public/Navbar";
 import Ambient from "@/components/public/Ambient";
 import Hero from "@/components/public/Hero";
@@ -86,26 +87,22 @@ export async function generateMetadata(): Promise<Metadata> {
   const title = config.seo_title || config.hero_title;
   const description = config.seo_description || config.hero_subtitle;
   const image =
-    publicMediaUrl(
-      config.og_image_display,
-      config.og_image_url,
-      config.hero_image_display,
-      config.hero_image_url
-    ) || undefined;
+    publicMediaUrl(config.og_image_display, config.og_image_url) ||
+    DEFAULT_OG_IMAGE;
   return {
     title,
     description,
     openGraph: {
       title,
       description,
-      images: image ? [{ url: image }] : [],
+      images: [{ url: image }],
       type: "website",
     },
     twitter: {
       card: "summary_large_image",
       title,
       description,
-      images: image ? [image] : [],
+      images: [image],
     },
   };
 }

@@ -4,6 +4,7 @@ import "./globals.css";
 import ThemeProvider from "@/components/ThemeProvider";
 import { getSiteConfig } from "@/lib/server";
 import { DEFAULT_PRIMARY, DEFAULT_SECONDARY } from "@/lib/theme";
+import { DEFAULT_OG_IMAGE, SITE_URL } from "@/lib/siteDefaults";
 
 const inter = Inter({
   variable: "--font-sans",
@@ -16,10 +17,28 @@ const poppins = Poppins({
   subsets: ["latin"],
 });
 
+const SITE_TITLE = "Rafael Aragão — Rei dos Peão";
+const SITE_DESCRIPTION =
+  "Agenda de shows, contratação e informações do humorista Rafael Aragão.";
+
 export const metadata: Metadata = {
-  title: "Rafael Aragão — Rei dos Peão",
-  description:
-    "Agenda de shows, contratação e informações do humorista Rafael Aragão.",
+  metadataBase: new URL(SITE_URL),
+  title: SITE_TITLE,
+  description: SITE_DESCRIPTION,
+  openGraph: {
+    title: SITE_TITLE,
+    description: SITE_DESCRIPTION,
+    siteName: SITE_TITLE,
+    locale: "pt_BR",
+    type: "website",
+    images: [{ url: DEFAULT_OG_IMAGE, width: 1200, height: 630 }],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: SITE_TITLE,
+    description: SITE_DESCRIPTION,
+    images: [DEFAULT_OG_IMAGE],
+  },
 };
 
 export default async function RootLayout({

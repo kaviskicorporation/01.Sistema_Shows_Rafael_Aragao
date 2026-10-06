@@ -19,6 +19,7 @@ import {
   Sparkles,
   Save,
   Bell,
+  X,
 } from "lucide-react";
 import Topbar from "@/components/admin/Topbar";
 import AdminHero from "@/components/admin/AdminHero";
@@ -399,76 +400,106 @@ export default function UsuariosPage() {
       </div>
 
       {modal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
-          <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto admin-glass p-6 shadow-2xl">
-            <div className="flex items-start gap-3">
-              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-gold/15 text-gold">
-                {editing ? <Pencil size={18} /> : <Plus size={18} />}
-              </span>
-              <div>
-                <h3 className="font-display text-xl font-bold text-white">
-                  {editing ? "Editar usuário" : "Novo usuário"}
-                </h3>
-                <p className="mt-0.5 text-xs text-white/40">
-                  Ex.: username{" "}
-                  <span className="text-white/60">comercial1</span>, nome{" "}
-                  <span className="text-white/60">Comercial 1</span>
-                </p>
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-3 backdrop-blur-sm sm:p-4"
+          onClick={() => setModal(null)}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="user-modal-title"
+            onClick={(e) => e.stopPropagation()}
+            className="admin-glass relative flex max-h-[min(90dvh,860px)] w-full max-w-2xl flex-col shadow-2xl"
+          >
+            <div className="relative z-[1] flex shrink-0 items-start justify-between gap-3 border-b border-white/10 px-5 py-4 sm:px-6">
+              <div className="flex min-w-0 items-start gap-3">
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gold/15 text-gold">
+                  {editing ? <Pencil size={18} /> : <Plus size={18} />}
+                </span>
+                <div className="min-w-0">
+                  <h3
+                    id="user-modal-title"
+                    className="font-display text-xl font-bold text-white"
+                  >
+                    {editing ? "Editar usuário" : "Novo usuário"}
+                  </h3>
+                  <p className="mt-0.5 text-xs text-white/40">
+                    Ex.: usuário{" "}
+                    <span className="text-white/60">comercial1</span>, nome{" "}
+                    <span className="text-white/60">Comercial 1</span>
+                  </p>
+                </div>
               </div>
+              <button
+                type="button"
+                onClick={() => setModal(null)}
+                className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-white/10 text-white/60 transition hover:bg-white/10 hover:text-white"
+                title="Fechar"
+                aria-label="Fechar"
+              >
+                <X size={14} />
+              </button>
             </div>
 
-            <div className="mt-5 space-y-3">
-              <Field
-                label="Usuário (login)"
-                value={form.username}
-                onChange={(v) => setForm({ ...form, username: v })}
-                placeholder="comercial1"
-              />
-              <Field
-                label="Nome de exibição"
-                value={form.first_name}
-                onChange={(v) => setForm({ ...form, first_name: v })}
-                placeholder="Comercial 1"
-              />
-              <Field
-                label="E-mail"
-                value={form.email}
-                onChange={(v) => setForm({ ...form, email: v })}
-              />
-              <Field
-                label="Telefone"
-                value={form.phone}
-                onChange={(v) => setForm({ ...form, phone: v })}
-              />
-              <label className="block text-sm">
-                <span className="mb-1 flex items-center gap-1.5 text-white/60">
-                  <Shield size={12} /> Perfil base
-                </span>
-                <ThemedSelect
-                  value={form.role}
-                  onChange={(v) =>
-                    setForm({ ...form, role: v as Role })
-                  }
-                  options={roleOptions.map((r) => ({
-                    value: r.value,
-                    label: r.label,
-                  }))}
+            <div className="relative z-[1] min-h-0 flex-1 space-y-4 overflow-y-auto thin-scroll px-5 py-5 [scrollbar-gutter:stable] sm:px-6">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Field
+                  label="Usuário (login)"
+                  value={form.username}
+                  onChange={(v) => setForm({ ...form, username: v })}
+                  placeholder="comercial1"
                 />
-              </label>
-              <label className="block text-sm">
-                <span className="mb-1 flex items-center gap-1.5 text-white/60">
-                  <KeyRound size={12} />
-                  {editing ? "Nova senha (opcional)" : "Senha"}
-                </span>
-                <input
-                  type="password"
-                  value={form.password}
-                  onChange={(e) =>
-                    setForm({ ...form, password: e.target.value })
-                  }
-                  className="w-full rounded-lg border border-white/10 bg-ink px-3 py-2 outline-none focus:border-gold"
+                <Field
+                  label="Nome de exibição"
+                  value={form.first_name}
+                  onChange={(v) => setForm({ ...form, first_name: v })}
+                  placeholder="Comercial 1"
                 />
-              </label>
+                <Field
+                  label="E-mail"
+                  type="email"
+                  value={form.email}
+                  onChange={(v) => setForm({ ...form, email: v })}
+                  placeholder="nome@orafaelaragao.com.br"
+                />
+                <Field
+                  label="Telefone"
+                  value={form.phone}
+                  onChange={(v) => setForm({ ...form, phone: v })}
+                />
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className="block text-sm">
+                  <span className="mb-1 flex items-center gap-1.5 text-white/60">
+                    <Shield size={12} /> Perfil base
+                  </span>
+                  <ThemedSelect
+                    value={form.role}
+                    onChange={(v) =>
+                      setForm({ ...form, role: v as Role })
+                    }
+                    options={roleOptions.map((r) => ({
+                      value: r.value,
+                      label: r.label,
+                    }))}
+                  />
+                </label>
+                <label className="block text-sm">
+                  <span className="mb-1 flex items-center gap-1.5 text-white/60">
+                    <KeyRound size={12} />
+                    {editing ? "Nova senha (opcional)" : "Senha"}
+                  </span>
+                  <input
+                    type="password"
+                    value={form.password}
+                    onChange={(e) =>
+                      setForm({ ...form, password: e.target.value })
+                    }
+                    autoComplete="new-password"
+                    className="w-full rounded-lg border border-white/10 bg-ink px-3 py-2 outline-none focus:border-gold"
+                  />
+                </label>
+              </div>
 
               {form.role !== "admin" && (
                 <div className="rounded-xl border border-gold/20 bg-gradient-to-br from-gold/8 to-transparent p-4">
@@ -479,7 +510,7 @@ export default function UsuariosPage() {
                   <p className="mt-0.5 text-xs text-white/40">
                     Marque as abas que este usuário poderá abrir no painel.
                   </p>
-                  <ul className="mt-3 grid gap-1.5 sm:grid-cols-1">
+                  <ul className="mt-3 grid gap-1.5 sm:grid-cols-2">
                     {DELEGATABLE.map((m) => {
                       const on = Boolean(form.module_permissions[m.key]);
                       return (
@@ -539,7 +570,7 @@ export default function UsuariosPage() {
               </label>
             </div>
 
-            <div className="mt-6 flex justify-end gap-2">
+            <div className="relative z-[1] flex shrink-0 justify-end gap-2 border-t border-white/10 px-5 py-4 sm:px-6">
               <button
                 onClick={() => setModal(null)}
                 className="rounded-full border border-white/15 px-4 py-2 text-sm"

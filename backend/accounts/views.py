@@ -57,6 +57,12 @@ class LoginView(APIView):
         username = serializer.validated_data["username"]
         password = serializer.validated_data["password"]
         user = authenticate(request, username=username, password=password)
+        if user is None and "@" in username:
+            by_email = User.objects.filter(email__iexact=username).first()
+            if by_email is not None:
+                user = authenticate(
+                    request, username=by_email.username, password=password
+                )
         if user is None or not user.is_active:
             return Response(
                 {"detail": "Credenciais inválidas."},

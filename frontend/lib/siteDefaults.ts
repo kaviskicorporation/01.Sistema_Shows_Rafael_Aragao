@@ -4,7 +4,7 @@ export const SITE_URL =
   process.env.SITE_URL || "https://orafaelaragao.com.br";
 
 /** Prévia padrão ao compartilhar links (WhatsApp, redes sociais). */
-export const DEFAULT_OG_IMAGE = "/images/og-default.png";
+export const DEFAULT_OG_IMAGE = "/images/og-default.jpg";
 
 /** Valores padrão do site (seed / fábrica) — usados em “Voltar ao padrão”. */
 export const SITE_DEFAULTS: Pick<
